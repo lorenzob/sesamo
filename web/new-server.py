@@ -80,7 +80,7 @@ args = parser.parse_args()
 
 align = openface.AlignDlib(args.dlibFacePredictor)
 net = openface.TorchNeuralNet(args.networkModel, imgDim=args.imgDim,
-                              cuda=args.cuda)
+                              cuda=True)
 
 def ensure_dir(f):
     d = os.path.dirname(f)
@@ -145,12 +145,13 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
 
 
     def trainingCallback(self, msg):
-        print "Callback: " + msg
+        print "Callback: " + str(msg)
 
     def doTraining(self):
         
         print "Start training from: " + self.userDataDir
         print "Loading data from disk..."
+        # load the data from file system
         X, y, self.knownUsers = self.trainFromFolder(net, self.userDataDir)
         print "Loading done."
         self.le = LabelEncoder().fit(self.knownUsers)
@@ -160,14 +161,22 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
             "identities":["Fitting data..."]}
         self.sendMessage(json.dumps(msg))
         
-    # train the network starting from file system
-    #self.svm = SVC(C=1, kernel='linear', probability=True)
-        param_grid = [{'C':[1, 10, 100, 1000], 
-                'kernel':['linear']}, 
-                 {'C':[1, 10, 100, 1000], 
-                'gamma':[0.001, 0.0001], 
-                'kernel':['rbf']}]
-        self.svm = GridSearchCV(SVC(C=1, probability=True), param_grid, cv=5).fit(X, y)
+        # train the network
+        # see: http://scikit-learn.org/stable/modules/svm.html
+        
+        # In un commento dicevano che dai loro test 
+        # il semplice SVC funziona bene quanto il 
+        # piu' complesso GridSearchCV
+        if 1 == 1:
+            self.svm = SVC(C=1, kernel='linear', probability=True)
+        else:
+            param_grid = [{'C':[1, 10, 100, 1000], 
+                    'kernel':['linear']}, 
+                     {'C':[1, 10, 100, 1000], 
+                    'gamma':[0.001, 0.0001], 
+                    'kernel':['rbf']}]
+            self.svm = GridSearchCV(SVC(C=1, probability=True), param_grid, cv=5)
+    
         print "Fitting data..."
         self.svm.fit(X, y)
         print "Fitting done"
