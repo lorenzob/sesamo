@@ -1,0 +1,9 @@
+Cuda (la 8.0 non la 7.0):
+
+https://www.reddit.com/r/deepdream/comments/3cd1yf/howto_install_on_ubuntulinux_mint_including_cuda/
+
+Installare anche cutorch per lua
+
+luarocks install torch
+luarocks install cutorch
+luarocks install cunn
