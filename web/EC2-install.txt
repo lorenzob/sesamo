@@ -1,0 +1,134 @@
+
+# Setup generico (compilatori, python, ecc.)
+
+sudo apt-get install -y git build-essential cmake unzip
+
+sudo apt-get install -y python python-pip python-dev libboost-all-dev
+
+echo "export LC_ALL=C" >> ~/.bashrc
+. ~/.bashrc
+
+pip install --upgrade pip
+sudo pip install numpy pandas scipy scikit-learn scikit-image
+
+
+# Build opencv
+	
+	cd $HOME
+	
+	mkdir opencv
+	cd opencv
+	
+	wget https://github.com/Itseez/opencv/archive/2.4.11.zip
+	unzip 2.4.11.zip
+	
+	cd opencv-2.4.11
+	mkdir release
+	cd release
+	cmake -D CMAKE_BUILD_TYPE=RELEASE -D CMAKE_INSTALL_PREFIX=/usr/local ..
+	make
+	sudo make install
+	
+
+# Build dlib, lua, CUDA, ecc.
+	
+	# Qui installo dlib 18.16, in ALTERNATIVA si puo' installare il 19.3.1, vedi a fine file
+	
+	cd $HOME
+	
+	# sudo apt-get install -y python-skimage
+	
+	mkdir dlib; cd dlib
+	
+	wget https://github.com/davisking/dlib/releases/download/v18.16/dlib-18.16.tar.bz2
+	
+	tar xvf dlib-18.16.tar.bz2
+	cd dlib-18.16/python_examples
+	mkdir build
+	cd build
+	cmake ../../tools/python
+	cmake --build . --config Release
+	sudo cp dlib.so /usr/local/lib/python2.7/dist-packages
+
+# Torch
+	
+	cd $HOME
+	
+	git clone https://github.com/torch/distro.git ~/torch --recursive
+	
+	cd ~/torch
+	
+	# This will take a few minutes...
+	bash install-deps
+	./install.sh       # rispondere si' alla modifica del .bashrc
+	. ~/.bashrc
+	
+	. $HOME/.bashrc
+	sudo chown -R ubuntu:ubuntu luarocks/
+	
+	luarocks install image 
+	luarocks install csvigo 
+	luarocks install dpnn 
+	luarocks install nn
+	luarocks install optim
+	# luarocks install fblualib   # rotto
+	luarocks install tds 
+	luarocks install torchx 
+	luarocks install optnet 
+	
+	# luarocks install cutorch   # CUDA only
+	# luarocks install cunn   # CUDA only
+
+
+
+# Build openface
+
+cd $HOME
+
+git clone https://github.com/cmusatyalab/openface.git
+
+cd openface
+
+sudo python setup.py install
+
+models/get-models.sh 
+
+# Check demo
+./demos/compare.py images/examples/{lennon*,clapton*}
+
+
+# Build sesamo
+
+cd $HOME
+
+git clone https://github.com/lorenzob/sesamo.git
+
+cd sesamo
+
+sudo pip install -r requirements.txt
+
+sudo pip install opencv-python requests
+
+cd sesamo/web
+
+# ./install-deps
+
+
+################### Per usare dlib 19 ################### 
+
+tar xvf dlib-19.3.1.tar.gz
+cd dlib-19.3.1
+
+# Check AVX support
+
+grep avx /proc/cpuinfo
+
+sudo python setup.py install --yes USE_AVX_INSTRUCTIONS
+
+git clone https://github.com/xianyi/OpenBLAS.git
+make
+sudo cp  /usr/local/lib/python2.7/dist-packages
+sudo make PREFIX=/usr install
+
+# Check demo
+./demos/compare.py images/examples/{lennon*,clapton*}
