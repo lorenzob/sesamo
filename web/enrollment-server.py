@@ -14,6 +14,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+#####################################################################
+#
+# Applicazione web con cui l'utente salva le proprie foto
+#
+# Le foto vengono salvate in locale e a fine training trasferite
+# altrove. A quel punto viene dato il comando di reindicizzazione
+#
+# In questo momento fa queste cose:
+# 1. riceve il nome dell'utente che sta effettuando il training
+# 2. riceve un frame, verifica che ci sia un singolo volto, lo 
+#    estrae/normalizza e lo salva
+# 3. gestisce la fine del training trasferendo i file
+# 4. spedisce verso il client un'immagine in cui si visibile il riquadro 
+#    verde di riconoscimento
+#
+# Da riorganizzare come: 
+# unire 1 e 2, 
+# 3 come prima (gestendo piu' training attivi, spedendo solo le immagini giuste)
+# 4 spedire le coordinate del rettangolo, non un'immagine
+#####################################################################
+
+
 import os
 import sys
 fileDir = os.path.dirname(os.path.realpath(__file__))
@@ -54,7 +76,7 @@ import openface
 
 import requests
 
-rb_url = 'http://192.168.2.117:3000'
+#rb_url = 'http://192.168.2.117:3000'
 
 SAMPLES_IMG_SIZE = 96
 
@@ -81,14 +103,6 @@ args = parser.parse_args()
 align = openface.AlignDlib(args.dlibFacePredictor)
 net = openface.TorchNeuralNet(args.networkModel, imgDim=args.imgDim,
                               cuda=True)
-
-def foo(exctype, value, tb):
-    print 'My Error Information'
-    print 'Type:', exctype
-    print 'Value:', value
-    print 'Traceback:', tb
-
-sys.excepthook = foo
 
 def ensure_dir(f):
     d = os.path.dirname(f)
@@ -122,21 +136,16 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
     userDataDir = cwd + "/web-identities"
     print("userDataDir: {}".format(userDataDir))
 
-    status = "ready"
+    #status = "ready"
     currentTrainingSubject = None
-    knownUsers = []
-    le = LabelEncoder().fit(knownUsers)
+    #knownUsers = []
+    #le = LabelEncoder().fit(knownUsers)
 
     def __init__(self):
         self.images = {}
         self.training = True
         self.people = []
         self.svm = None
-        if args.unknown:
-            self.unknownImgs = np.load("./examples/web/unknown.npy")
-        
-        # Qui non va bene, scatta sulla prima connessione
-        # self.doTraining()
 
     def onConnect(self, request):
         print("Client connecting: {0}".format(request.peer))
@@ -144,95 +153,6 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
 
     def onOpen(self):
         print("WebSocket connection open.")
-
-
-    def asyncTraining(self):
-        print("asyncTraining started")
-        
-        try:
-            self.doTraining()
-        except Exception as e:
-            print "Exception in asyncTraining"
-            print "Unexpected error:", sys.exc_info()[0]            
-            print e
-            traceback.print_exc()
-        except:
-            print "Unexpected error:", sys.exc_info()[0]            
-
-        print("asyncTraining finished")
-
-    def trainingCallback(self, userFreq):
-        print "Callback: " + str(userFreq)
-
-    def doTraining(self):
-        
-        newLe = None
-        newSvm = None
-        
-        print "Start training from: " + self.userDataDir
-        print "Loading data from disk..."
-        # load the data from file system
-        X, y, self.knownUsers = self.trainFromFolder(net, self.userDataDir)
-        print "Loading done."
-        newLe = LabelEncoder().fit(self.knownUsers)
-
-        msg = {
-            "type":"IDENTITIES", 
-            "identities":["Fitting data..."]}
-        self.sendMessage(json.dumps(msg))
-        
-        # train the network
-        # see: http://scikit-learn.org/stable/modules/svm.html
-        
-        # In un commento dicevano che dai loro test 
-        # il semplice SVC funziona bene quanto il 
-        # piu' complesso GridSearchCV
-        if 1 == 1:
-            newSvm = SVC(C=1, kernel='linear', probability=True)
-        else:
-            param_grid = [{'C':[1, 10, 100, 1000], 
-                    'kernel':['linear']}, 
-                     {'C':[1, 10, 100, 1000], 
-                    'gamma':[0.001, 0.0001], 
-                    'kernel':['rbf']}]
-            newSvm = GridSearchCV(SVC(C=1, probability=True), param_grid, cv=5)
-    
-        print "Fitting data..."
-        newSvm.fit(X, y)
-        print "Fitting done."
-        
-        #Non indispensabile
-        print "Printing stats..."
-        from scipy.stats import itemfreq
-        freq = itemfreq(y)
-        userFreq = []
-        for x in freq:
-            userFreq.append(str(x))
-        print "Stats: " + str(userFreq)
-
-        try:
-            import pickle
-
-            fName = "{}/current-classifier.pkl".format(self.userDataDir)
-            print("Saving classifier to '{}'".format(fName))
-            with open(fName, 'w') as f:
-                pickle.dump((newLe, newSvm), f)
-        except Exception as ex:
-            print "Exception in asyncTraining " + str(ex) 
-            print "Unexpected error:", sys.exc_info()[0]            
-        
-
-        msg = {
-            "type":"IDENTITIES", 
-            "identities":userFreq}
-        self.sendMessage(json.dumps(msg))
-
-        #print(userFreq)
-        self.le = newLe
-        self.svm = newSvm
-        
-        print "Training done."
-        return userFreq
 
     def onMessage(self, payload, isBinary):
         raw = payload.decode('utf8')
@@ -255,23 +175,9 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
             else:
                 self.currentTrainingSubject = None
                 
-                userFreq = ["Training started, please wait..."]
-                
-                # userFreq = self.doTraining()
-                # asynch training                
-                new_callback_function = \
-                    lambda new_name: self.trainingCallback(new_name)
-                
-                self.pool.apply_async(
-                    self.doTraining,
-                    args=[],
-                    callback=new_callback_function
-                )
-                print("asyncTraining invoked")
-
                 msg = {
                     "type":"IDENTITIES", 
-                    "identities":userFreq}
+                    "identities": ["Training completato."]}
                 self.sendMessage(json.dumps(msg))
                 
         else:
@@ -280,57 +186,6 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
     def onClose(self, wasClean, code, reason):
         print("WebSocket connection closed: {0}".format(reason))
     
-    def trainFromFolder(self, net, userDataDir):
-
-        msg = {
-            "type": "IDENTITIES",
-            "identities": "Updating network data..."
-        }
-        # Non appare...
-        #self.sendMessage(json.dumps(msg))
-        
-        X = []
-        y = []
-        utenti = []
-    
-        userDataFolders = os.walk(userDataDir).next()[1]
-        for userName in userDataFolders:
-            
-            print "\n Reading images for " + userName
-
-            utenti.append(userName)
-            imgDir = userDataDir + "/" + userName
-            frameCount = 0
-            files = os.listdir(imgDir)
-            for userImg in files:
-                
-                sys.stdout.write('.')
-                msg = {
-                    "type":"IDENTITIES", 
-                    "identities":["Training {} [{}/{}] (please wait)...".format(userName, frameCount, len(files))]}
-                self.sendMessage(json.dumps(msg))
-                
-                # Take the image file name from the command line
-                file_name = imgDir + "/" + userImg
-                # Load the image
-                image = cv2.imread(file_name)
-                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-                rep = net.forward(image)
-                X.append(rep)
-                y.append(userName)
-                
-                frameCount = frameCount+1
-        
-        # Fine training
-        X = np.vstack(X)
-        y = np.array(y)
-        
-        print "\n Fine training"
-        return X, y, utenti
-
-
-    #win = dlib.image_window()
     lastSaveTime = 0
     trainingFramesCount = 0
 
@@ -343,7 +198,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         imgF.seek(0)
         img = Image.open(imgF)
 
-        # A quanto pare dalla webcam arriva alla roverscia
+        # A quanto pare dalla webcam arriva alla rovescia
         # e lo rigira per poterlo visualizzare giusto
         buf = np.fliplr(np.asarray(img))
         
@@ -391,16 +246,14 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                             box,
                             landmarkIndices=openface.AlignDlib.OUTER_EYES_AND_NOSE)
     
+                    #rgbFace = cv2.cvtColor(alignedFace, cv2.COLOR_BGR2RGB)
                     # Per debug
-                    rgbFace = cv2.cvtColor(alignedFace, cv2.COLOR_BGR2RGB)
-                    #self.win.set_image(rgbFace) #raw_input("Press Enter to continue...")
-            
                     # Immaginina
-                    l_img = annotatedFrame
-                    s_img = rgbFace
-                    x_offset = l_img.shape[1] - 100
-                    y_offset = l_img.shape[0] - 100
-                    l_img[y_offset:y_offset+s_img.shape[0], x_offset:x_offset+s_img.shape[1]] = s_img
+                    #l_img = annotatedFrame
+                    #s_img = rgbFace
+                    #x_offset = l_img.shape[1] - 100
+                    #y_offset = l_img.shape[0] - 100
+                    #l_img[y_offset:y_offset+s_img.shape[0], x_offset:x_offset+s_img.shape[1]] = s_img
                 
                     # salvo immaginetta
                     if time.time() - self.lastSaveTime > 0.25:
@@ -422,76 +275,41 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                 self.sendMessage(json.dumps(msg))
         else:
 
-            # Riconoscimento
             lineShift = 0
-            usersInFrame = []
             for box in bbs:
-                alignedFace = align.align(
-                        SAMPLES_IMG_SIZE,
-                        rgbImg,
-                        box,
-                        landmarkIndices=openface.AlignDlib.OUTER_EYES_AND_NOSE)
+                #alignedFace = align.align(
+                #        SAMPLES_IMG_SIZE,
+                #        rgbImg,
+                #        box,
+                #        landmarkIndices=openface.AlignDlib.OUTER_EYES_AND_NOSE)
 
                 bl = (box.left(), box.bottom()); tr = (box.right(), box.top())
                 cv2.rectangle(annotatedFrame, bl, tr, color=(153, 255, 204),
                               thickness=2)
                 
-                # Devo convetirla RGB?
-                alignedFace = cv2.cvtColor(alignedFace, cv2.COLOR_BGR2RGB)
-                #self.win.set_image(alignedFace) #raw_input("Press Enter to continue...")
-            
+                #alignedFace = cv2.cvtColor(alignedFace, cv2.COLOR_BGR2RGB)
+                
+                # Lascio la mini picture??
                 # Mini picture
-                l_img = annotatedFrame
-                s_img = alignedFace
-                x_offset = l_img.shape[1] - 100
-                y_offset = l_img.shape[0] - 100
-                l_img[y_offset:y_offset+s_img.shape[0], x_offset:x_offset+s_img.shape[1]] = s_img
-            
-                if self.svm:
-                    
-                    rep = net.forward(alignedFace).reshape(1, -1)
-                    # Il reshape serve perche' chiedo una predizione sola
-                    # qui sarebbe probabilmente piu' giusto accumulare
-                    # i volti e farne una sola(?)
-                    predictions = self.svm.predict_proba(rep).ravel()
-                    
-                    maxI = np.argmax(predictions)
-                    confidence = predictions[maxI]
-
-                    text = "{} (confidence {})".format(self.le.inverse_transform(maxI), confidence)
-                    #cv2.putText(annotatedFrame, text, (5, 25 + lineShift),
-                    #            cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5,
-                    #            color=(0, 255, 0), thickness=1)
-                    #lineShift = lineShift + 15;
-                    
-                    usersInFrame.append(text)
-
-            msg = {
-                "type": "IDENTITIES",
-                "identities": usersInFrame
-            }
-            self.sendMessage(json.dumps(msg))
+                #l_img = annotatedFrame
+                #s_img = alignedFace
+                #x_offset = l_img.shape[1] - 100
+                #y_offset = l_img.shape[0] - 100
+                #l_img[y_offset:y_offset+s_img.shape[0], x_offset:x_offset+s_img.shape[1]] = s_img
 
         plt.figure()
         plt.imshow(annotatedFrame)
         plt.xticks([])
         plt.yticks([])
 
-
         #TODO: vedere di spedirla super compressa?
         # http://stackoverflow.com/questions/10784652/png-options-to-produce-smaller-file-size-when-using-savefig
-
         imgdata = StringIO.StringIO()
+        #plt.savefig(imgdata, format='png')
         plt.savefig(imgdata, format="jpg", dpi=75, quality=15)
-        
-        #fileName = "{}/frame-{}.png".format(self.userDataDir, time.time())
-        #print("Saving img to: {}".format(fileName))
 
-        #imgdata.seek(0)
-        #im = Image.open(imgdata)
-        #im.save(fileName , format='PNG')
-        
         imgdata.seek(0)
+        #TODO: base64??? :(
         content = 'data:image/png;base64,' + \
             urllib.quote(base64.b64encode(imgdata.buf))
         msg = {
@@ -503,18 +321,6 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         #from random import randint
         #if randint(0,9) > 5:
         self.sendMessage(json.dumps(msg))
-
-    def open(self, openFlag):
-
-        print("Remote open command: '{0}'".format(openFlag))
-        
-        payload = {'open': openFlag}
-
-        # GET with params in URL
-        r = requests.get(rb_url, params=payload)
-        
-        r.text
-        r.status_code
 
 if __name__ == '__main__':
     log.startLogging(sys.stdout)

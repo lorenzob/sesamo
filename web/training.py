@@ -72,7 +72,7 @@ dlibModelDir = os.path.join(modelDir, 'dlib')
 shape_predictor = default=os.path.join(dlibModelDir, "shape_predictor_68_face_landmarks.dat")
 
 net = openface.TorchNeuralNet(nn4Model, imgDim=96,
-                              cuda=True)
+                              cuda=False)
 
 print("Training:")
 

@@ -157,6 +157,8 @@ function sendState() {
     socket.send(JSON.stringify(msg));
 }
 
+var canvas = null;
+
 function createSocket(address, name) {
     socket = new WebSocket(address);
     socketName = name;
@@ -244,6 +246,60 @@ function createSocket(address, name) {
             BootstrapDialog.show({
                 message: "<img src='" + j['content'] + "' width='100%'></img>"
             });
+        } else if (j.type == "MATCHES") {
+            
+        	ids = j.identities
+            var len = ids.length
+            if (len == 0) {
+            	return
+            }
+
+            if (canvas == null) {
+            	
+                canvas = document.createElement('canvas'); //Create a canvas element
+                //Set canvas width/height
+                canvas.style.width='100%';
+                canvas.style.height='100%';
+                //Set canvas drawing area width/height
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                //Position canvas
+                canvas.style.position='absolute';
+                
+                canvas.style.left=0;
+                canvas.style.top=0;
+                canvas.style.zIndex=100000;
+                canvas.style.pointerEvents='none'; //Make sure you can click 'through' the canvas
+                document.body.appendChild(canvas); //Append canvas to body element
+            }
+            
+            var pos = document.getElementById('videoel').getBoundingClientRect();
+            var context = canvas.getContext('2d');
+            context.clearRect(0, 0, canvas.width, canvas.height);            
+            
+            for (var i = 0; i < len; i++) {
+                var subject = ids[i];
+            
+	            var nome = subject[0]
+	            var conf = parseFloat(subject[1]).toFixed(3);
+	            var bbox = subject[2]
+	        	
+	            var x = bbox[0];
+	            var y = bbox[3];
+	            var width = bbox[2] - bbox[0];
+	            var height = bbox[1] - bbox[3];
+
+	            context.beginPath();
+	            context.lineWidth = 3;
+	            context.strokeStyle = stringToColour(nome);
+	            //context.strokeStyle = "LimeGreen" 
+	            context.strokeRect(x + pos.x, y + pos.y, width, height);
+	            
+	            context.font = "14px Arial";
+	            context.fillStyle = stringToColour(nome) 
+	            context.fillText(nome + " (" + conf + ")", x + pos.x, y + pos.y - 5);
+	            context.closePath();
+            }
         } else {
             console.log("Unrecognized message type: " + j.type);
         }
@@ -257,6 +313,25 @@ function createSocket(address, name) {
             $("#serverStatus").html("Disconnected.");
         }
     }
+}
+
+function stringToColour(str) {
+    for (var i = 0, hash = 0; i < str.length; hash = str.charCodeAt(i++) + ((hash << 5) - hash));
+    color = Math.floor(Math.abs((Math.sin(hash) * 10000) % 1 * 16777216)).toString(16);
+    return '#' + Array(6 - color.length + 1).join('0') + color;
+}
+
+var _stringToColour = function(str) {
+  var hash = 0;
+  for (var i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  var colour = '#';
+  for (var i = 0; i < 3; i++) {
+    var value = (hash >> (i * 8)) & 0xFF;
+    colour += ('00' + value.toString(16)).substr(-2);
+  }
+  return colour;
 }
 
 function umSuccess(stream) {
