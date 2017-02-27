@@ -250,9 +250,6 @@ function createSocket(address, name) {
             
         	ids = j.identities
             var len = ids.length
-            if (len == 0) {
-            	return
-            }
 
             if (canvas == null) {
             	
@@ -276,7 +273,7 @@ function createSocket(address, name) {
             var pos = document.getElementById('videoel').getBoundingClientRect();
             var context = canvas.getContext('2d');
             context.clearRect(0, 0, canvas.width, canvas.height);            
-            
+
             for (var i = 0; i < len; i++) {
                 var subject = ids[i];
             
