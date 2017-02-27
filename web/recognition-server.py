@@ -269,8 +269,9 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
             
             text = "{} (confidence {})".format(nome, confidence)
             usersInFrame.append(text)
-            # print(matches)
+            
             #self.sendMessage(json.dumps(msg))
+        print(matches)
 
         msg = {
             "type": "IDENTITIES",
