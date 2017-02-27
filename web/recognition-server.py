@@ -86,7 +86,7 @@ parser.add_argument('--imgDim', type=int,
 parser.add_argument('--cuda', action='store_true')
 parser.add_argument('--unknown', type=bool, default=False,
                     help='Try to predict unknown people')
-parser.add_argument('--port', type=int, default=9000,
+parser.add_argument('--port', type=int, default=9002,
                     help='WebSocket Port')
 
 args = parser.parse_args()
@@ -215,7 +215,6 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
 
         # Riconoscimento
         matches = []
-        print("bbs: " + str(len(bbs)))
         for box in bbs:
             alignedFace = align.align(
                     SAMPLES_IMG_SIZE,
@@ -237,7 +236,6 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
 
             location = [box.left(), box.bottom(), box.right(), box.top()]
             
-            print("Adding " + nome)
             matches.append([nome, confidence, location])
             
             # print(matches)
@@ -256,10 +254,9 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
 #            urllib.quote(base64.b64encode(imgdata.buf))
         #plt.close()
 
-        # TODO: qui devo mandare una lista di match.
         # Ogni match e' fatto da [nome, confidenza, location]
         # dove location e' [xL, yBottom, xR, yTop] 
-        print(matches)
+        # print(matches)
         msg = {
             "type": "MATCHES",
             "identities": matches
