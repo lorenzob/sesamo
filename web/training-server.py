@@ -93,7 +93,7 @@ args = parser.parse_args()
 
 #align = openface.AlignDlib(args.dlibFacePredictor)
 net = openface.TorchNeuralNet(args.networkModel, imgDim=args.imgDim,
-                              cuda=args.cuda)
+                              cuda=False)
 
 def ensure_dir(f):
     d = os.path.dirname(f)
