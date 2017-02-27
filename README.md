@@ -20,6 +20,6 @@ Shutdown:  killall python2
 
 Singoli server:
 
-nohup ./enrollment-server.sh &
-nohup ./training-server.sh &
-nohup ./recognition-server.sh &
+nohup ./enrollment-server.sh &  
+nohup ./training-server.sh &  
+nohup ./recognition-server.sh &  
