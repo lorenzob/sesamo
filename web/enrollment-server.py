@@ -92,17 +92,17 @@ parser.add_argument('--networkModel', type=str, help="Path to Torch network mode
                     default=os.path.join(openfaceModelDir, 'nn4.small2.v1.t7'))
 parser.add_argument('--imgDim', type=int,
                     help="Default image dimension.", default=SAMPLES_IMG_SIZE)
-parser.add_argument('--cuda', action='store_true')
+parser.add_argument('--cuda', action='store_false')
 parser.add_argument('--unknown', type=bool, default=False,
                     help='Try to predict unknown people')
-parser.add_argument('--port', type=int, default=9000,
+parser.add_argument('--port', type=int, default=9001,
                     help='WebSocket Port')
 
 args = parser.parse_args()
 
 align = openface.AlignDlib(args.dlibFacePredictor)
-net = openface.TorchNeuralNet(args.networkModel, imgDim=args.imgDim,
-                              cuda=True)
+#net = openface.TorchNeuralNet(args.networkModel, imgDim=args.imgDim,
+#                              cuda=args.cuda)
 
 def ensure_dir(f):
     d = os.path.dirname(f)
@@ -136,10 +136,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
     userDataDir = cwd + "/web-identities"
     print("userDataDir: {}".format(userDataDir))
 
-    #status = "ready"
     currentTrainingSubject = None
-    #knownUsers = []
-    #le = LabelEncoder().fit(knownUsers)
 
     def __init__(self):
         self.images = {}
@@ -153,6 +150,11 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
 
     def onOpen(self):
         print("WebSocket connection open.")
+
+        msg = {
+            "type":"IDENTITIES", 
+            "identities": ["Ready"]}
+        self.sendMessage(json.dumps(msg))
 
     def onMessage(self, payload, isBinary):
         raw = payload.decode('utf8')
@@ -173,13 +175,13 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                 self.currentTrainingSubject = msg['extra']
                 self.trainingFramesCount = 0
             else:
+                nome = self.currentTrainingSubject
                 self.currentTrainingSubject = None
                 
                 msg = {
                     "type":"IDENTITIES", 
-                    "identities": ["Training completato."]}
+                    "identities": ["Training completato per {}. New frames: {}".format(nome, self.trainingFramesCount)]}
                 self.sendMessage(json.dumps(msg))
-                
         else:
             print("Warning: Unknown message type: {}".format(msg['type']))
 
@@ -211,6 +213,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         # align
         bbs = align.getAllFaceBoundingBoxes(rgbImg)
 
+        matches = []
         if self.training:
             
             nome = self.currentTrainingSubject
@@ -225,14 +228,12 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                     "identities": ["Training problem: too many people, only {} should be present".format(nome)]
                 }
                 self.sendMessage(json.dumps(msg))
-                #return
             elif len(bbs) == 0:
                 msg = {
                     "type": "IDENTITIES",
                     "identities": ["Training problem: nobody's there. {} should be present".format(nome)]
                 }
                 self.sendMessage(json.dumps(msg))
-                #return
             else:
                 for box in bbs:   # in realta' ne ho uno solo
                     
@@ -246,15 +247,6 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                             box,
                             landmarkIndices=openface.AlignDlib.OUTER_EYES_AND_NOSE)
     
-                    #rgbFace = cv2.cvtColor(alignedFace, cv2.COLOR_BGR2RGB)
-                    # Per debug
-                    # Immaginina
-                    #l_img = annotatedFrame
-                    #s_img = rgbFace
-                    #x_offset = l_img.shape[1] - 100
-                    #y_offset = l_img.shape[0] - 100
-                    #l_img[y_offset:y_offset+s_img.shape[0], x_offset:x_offset+s_img.shape[1]] = s_img
-                
                     # salvo immaginetta
                     if time.time() - self.lastSaveTime > 0.25:
                         fileName = "{}/{}/{}.jpg".format(self.userDataDir, nome, time.time())
@@ -266,6 +258,9 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                         self.trainingFramesCount = self.trainingFramesCount + 1
                     else:
                         print("Skipping frame save: too close")
+
+                    location = [box.left(), box.bottom(), box.right(), box.top()]
+                    matches.append([nome + "?", 0, location])
                 
                 frames = self.trainingFramesCount
                 msg = {
@@ -273,54 +268,47 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                     "identities": ["Training {}...".format(nome), "Captured frames: {} (we need about 100)".format(frames)]
                 }
                 self.sendMessage(json.dumps(msg))
+                                
         else:
+            # Non durante il training
 
             lineShift = 0
             for box in bbs:
-                #alignedFace = align.align(
-                #        SAMPLES_IMG_SIZE,
-                #        rgbImg,
-                #        box,
-                #        landmarkIndices=openface.AlignDlib.OUTER_EYES_AND_NOSE)
 
                 bl = (box.left(), box.bottom()); tr = (box.right(), box.top())
                 cv2.rectangle(annotatedFrame, bl, tr, color=(153, 255, 204),
                               thickness=2)
-                
-                #alignedFace = cv2.cvtColor(alignedFace, cv2.COLOR_BGR2RGB)
-                
-                # Lascio la mini picture??
-                # Mini picture
-                #l_img = annotatedFrame
-                #s_img = alignedFace
-                #x_offset = l_img.shape[1] - 100
-                #y_offset = l_img.shape[0] - 100
-                #l_img[y_offset:y_offset+s_img.shape[0], x_offset:x_offset+s_img.shape[1]] = s_img
 
-        plt.figure()
-        plt.imshow(annotatedFrame)
-        plt.xticks([])
-        plt.yticks([])
+                location = [box.left(), box.bottom(), box.right(), box.top()]
+                matches.append(["???", 0, location])
+
+        msg = {
+            "type": "MATCHES",
+            "identities": matches
+        }
+        self.sendMessage(json.dumps(msg))
+
+
+        #plt.figure()
+        #plt.imshow(annotatedFrame)
+        #plt.xticks([])
+        #plt.yticks([])
 
         #TODO: vedere di spedirla super compressa?
         # http://stackoverflow.com/questions/10784652/png-options-to-produce-smaller-file-size-when-using-savefig
-        imgdata = StringIO.StringIO()
-        #plt.savefig(imgdata, format='png')
-        plt.savefig(imgdata, format="jpg", dpi=75, quality=15)
+        #imgdata = StringIO.StringIO()
+        #plt.savefig(imgdata, format="jpg", dpi=75, quality=15)
 
-        imgdata.seek(0)
-        #TODO: base64??? :(
-        content = 'data:image/png;base64,' + \
-            urllib.quote(base64.b64encode(imgdata.buf))
-        msg = {
-            "type": "ANNOTATED",
-            "content": content
-        }
-        plt.close()
+        #imgdata.seek(0)
+        #content = 'data:image/png;base64,' + \
+        #    urllib.quote(base64.b64encode(imgdata.buf))
+        #msg = {
+        #    "type": "ANNOTATED",
+        #    "content": content
+        #}
+        #plt.close()
         
-        #from random import randint
-        #if randint(0,9) > 5:
-        self.sendMessage(json.dumps(msg))
+        #self.sendMessage(json.dumps(msg))
 
 if __name__ == '__main__':
     log.startLogging(sys.stdout)

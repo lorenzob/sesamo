@@ -19,48 +19,38 @@ limitations under the License.
     <head>
         <meta charset="utf-8">
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Face Recognition</title>
         <link href="vendor/css/bootstrap.min.css" rel="stylesheet">
         <link href="vendor/css/bootstrap-toggle.min.css" rel="stylesheet">
         <link href="vendor/css/bootstrap-dialog.min.css" rel="stylesheet">
         <link href="css/main.css" rel="stylesheet">
     </head>
-    <body>
+    <body onresize="resetBoundingBoxCanvas()" onload="setTabLinks()">
         <div class="container">
             <div class="header">
                 <ul class='tabs'>
-                    <li class='tab-link current' data-tab='tab-preview'
-                        id='tab-preview-button'>
-                        Recognition
+                    <li class='tab-link' data-tab='tab-preview'>
+                        <A id="goto-enrollment-link">Enrollment</A>
+                    </li>
+                    <li class='tab-link current' data-tab='tab-preview'>
+                        Training
+                    </li>
+                    <li class='tab-link' data-tab='tab-preview'>
+                        <A id="goto-recognition-link">Recognition</A>
                     </li>
                 </ul>
-                <div id='tab-preview' class='tab-content current'>
-                    <video id="videoel" width="400" height="300"
-                           preload="auto" loop></video>
-                </div>
-                <div id='tab-annotated' class='tab-content'>
-                    <div id="detectedFaces"></div>
-                </div>
             </div>
+            
             <div class="content">
-                <h2>People in Video</h2>
+                <h2>Status</h2>
                 <div id="peopleInVideo"></div>
-
+                
                 <h2>Training
-                    <input type="checkbox" checked data-toggle="toggle"
-                           id="trainingChk">
+                     <button class="btn btn-default" type="button"
+                            id="startTrainingBtn">
+                        Start
+                    </button>
                 </h2>
-                <div class="input-group addPersonDiv">
-                    <input type="text" class="form-control" id="addPersonTxt">
-                </div>
-                <br/>
-				<!-- 
-                <h2>Servers: <span id="serverStatus"></span></h2>
-                <div class="btn-group" role="group" id="serverBtn">
-                    <button type="button" class="btn btn-default active">Local</button>
-                </div>
-				-->
             </div>
         </div>
     </body>
@@ -102,23 +92,14 @@ limitations under the License.
      $("#trainingChk").bootstrapToggle('off');
      $("#peopleInVideo").html("");
 
-     if (navigator.getUserMedia) {
-         var videoSelector = {video : true};
-         navigator.getUserMedia(videoSelector, umSuccess, function() {
-             alert("Error fetching video from webcam");
-         });
-     } else {
-         alert("No webcam detected.");
-     }
-
      $("#serverBtn.btn-group > .btn").click(changeServerCallback);
      $("#addPersonBtn").click(addPersonCallback);
      $("#addPersonTxt").pressEnter(addPersonCallback);
      $("#trainingChk").change(trainingChkCallback);
-     $("#viewTSNEBtn").click(viewTSNECallback);
+     $("#startTrainingBtn").click(startTrainingCallback);
 
      redrawPeople();
      // createSocket("ws://facerec.cmusatyalab.org:9000", "CMU");
-     createSocket("ws:" + window.location.hostname + ":9003", "Local");
+     createSocket("ws:" + window.location.hostname + ":9002", "Local");
     </script>
 </html>

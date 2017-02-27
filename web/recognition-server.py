@@ -18,9 +18,13 @@
 #
 # Applicazione REST con per il riconoscimento a partire da una foto
 # 
-# 1. Riceve una foto e ritorna nome e confidenza
+# 1. Riceve una foto e ritorna nome, confidenza e location
 #
 # 2. Riceve un pkl con la rete corrente e si aggiorna rispetto a quella
+#
+# 3. Comando per forzare il reload della rete
+#
+# 4. Info sulla rete corrente (data caricamento, utenti, ecc.)
 #
 #####################################################################
 
@@ -83,26 +87,44 @@ parser.add_argument('--networkModel', type=str, help="Path to Torch network mode
                     default=os.path.join(openfaceModelDir, 'nn4.small2.v1.t7'))
 parser.add_argument('--imgDim', type=int,
                     help="Default image dimension.", default=SAMPLES_IMG_SIZE)
-parser.add_argument('--cuda', action='store_true')
+parser.add_argument('--cuda', action='store_false')
 parser.add_argument('--unknown', type=bool, default=False,
                     help='Try to predict unknown people')
-parser.add_argument('--port', type=int, default=9002,
+parser.add_argument('--port', type=int, default=9003,
                     help='WebSocket Port')
 
 args = parser.parse_args()
 
 align = openface.AlignDlib(args.dlibFacePredictor)
 net = openface.TorchNeuralNet(args.networkModel, imgDim=args.imgDim,
-                              cuda=True)
+                              cuda=args.cuda)
 svm = None
 knownUsers = []
 le = LabelEncoder().fit(knownUsers)
-svmDefinitionFile = "svm-definition.pkl"
+svmDefinitionFile = "current-classifier.pkl"
+
+cwd = os.path.dirname(os.path.realpath(__file__))
+userDataDir = cwd + "/web-identities"
+
 
 def ensure_dir(f):
     d = os.path.dirname(f)
     if not os.path.exists(d):
         os.makedirs(d)
+
+def loadDefaultSVMData():
+    svmFile = userDataDir + "/" + svmDefinitionFile
+    loadSVMData(svmFile)
+
+def loadSVMData(fileName):
+    print("Reading data from: " + fileName)
+    with open(fileName, 'r') as f:
+        (lEnc, clf) = pickle.load(f)
+    global svm 
+    global le
+    svm = clf
+    le = lEnc
+    print("Reading data completed: " + str(svm))
 
 class Face:
 
@@ -126,14 +148,11 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
     from multiprocessing.dummy import Pool
     pool = Pool(processes=1)
     
-    cwd = os.path.dirname(os.path.realpath(__file__))
-
     def __init__(self):
         self.images = {}
         self.training = True
         self.people = []
-        if args.unknown:
-            self.unknownImgs = np.load("./examples/web/unknown.npy")
+        ensure_dir(userDataDir)
 
     def onConnect(self, request):
         print("Client connecting: {0}".format(request.peer))
@@ -155,14 +174,23 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
             self.processFrame(msg['dataURL'], msg['identity'])
             self.sendMessage('{"type": "PROCESSED"}')
         elif msg['type'] == "UPDATE_SVM":
-            print("")
+            print("UPDATE_SVM")
+            updateLocalSVMDefinitionOnDisk()
+        elif msg['type'] == "RELOAD_SVM":
+            print("RELOAD_SVM")
+            loadDefaultSVMData()
+        elif msg['type'] == "SVM_INFOS":
+            print("SVM_INFOS")
         else:
             print("Warning: Unknown message type: {}".format(msg['type']))
 
     def onClose(self, wasClean, code, reason):
         print("WebSocket connection closed: {0}".format(reason))
 
-    def trainFromFolder(self, net, userDataDir):
+
+    def updateLocalSVMDefinitionOnDisk(self):
+
+        # TODO: tutto da implementare, l'idea cmq e' quella qui sotto
 
         head = "data:image/jpeg;base64,"
         assert(dataURL.startswith(head))
@@ -171,21 +199,21 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         # salvo subito su disco in modo che rimanga 
         # disponibile dopo un riavvio.
         # TODO: caricarlo all'avvio
-        svmNewFile = svmDefinitionFile + ".new"
+        svmNewFile = userDataDir + "/" + svmDefinitionFile + ".new"
         with open(svmNewFile, "w") as f:
             f.write(pklData)
 
-        with open(svmNewFile, 'r') as f:
-            (le, clf) = pickle.load(f)
+        self.loadSVMData(svmNewFile)
+
+        #print("Reading data from: " + svmNewFile)
+        #with open(svmNewFile, 'r') as f:
+        #    (le, clf) = pickle.load(f)
 
         # Faccio un backup del file precedente
-        now = time.time()
-        os.rename(svmDefinitionFile, svmDefinitionFile + ".bak-" + str(now))
-        os.rename(svmNewFile, svmDefinitionFile)
+        #now = time.time()
+        #os.rename(svmDefinitionFile, svmDefinitionFile + ".bak-" + str(now))
+        os.rename(svmNewFile, userDataDir + "/" + svmDefinitionFile)
         
-        svm = clf
-        le = le
-
     def processFrame(self, dataURL, identity):
         
         if svm is None: # gestire meglio con un errore a monte
@@ -215,6 +243,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
 
         # Riconoscimento
         matches = []
+        usersInFrame = []
         for box in bbs:
             alignedFace = align.align(
                     SAMPLES_IMG_SIZE,
@@ -232,15 +261,22 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
             confidence = predictions[maxI]
 
             nome = le.inverse_transform(maxI)
-            text = "{} (confidence {})".format(nome, confidence)
+            # text = "{} (confidence {})".format(nome, confidence)
 
             location = [box.left(), box.bottom(), box.right(), box.top()]
-            
             matches.append([nome, confidence, location])
             
+            
+            text = "{} (confidence {})".format(nome, confidence)
+            usersInFrame.append(text)
             # print(matches)
             #self.sendMessage(json.dumps(msg))
 
+        msg = {
+            "type": "IDENTITIES",
+            "identities": usersInFrame
+        }
+        self.sendMessage(json.dumps(msg))
 #        plt.figure()
 #        plt.imshow(annotatedFrame)
 #        plt.xticks([])
@@ -280,10 +316,7 @@ if __name__ == '__main__':
     
     log.startLogging(sys.stdout)
 
-    with open(svmDefinitionFile, 'r') as f:
-        (labelEnc, clf) = pickle.load(f)
-    svm = clf
-    le = labelEnc
+    loadDefaultSVMData()
 
     factory = WebSocketServerFactory("ws://localhost:{}".format(args.port),
                                      debug=False)

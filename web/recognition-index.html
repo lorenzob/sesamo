@@ -30,14 +30,14 @@ limitations under the License.
         <div class="container">
             <div class="header">
                 <ul class='tabs'>
-                    <li class='tab-link current' data-tab='tab-preview'>
-                        Enrollment
+                    <li class='tab-link' data-tab='tab-preview'>
+                        <A id="goto-enrollment-link">Enrollment</A>
                     </li>
                     <li class='tab-link' data-tab='tab-preview'>
                         <A id="goto-training-link">Training</A>
                     </li>
-                    <li class='tab-link' data-tab='tab-preview'>
-                        <A id="goto-recognition-link">Recognition</A>
+                    <li class='tab-link current' data-tab='tab-preview'>
+                        Recognition
                     </li>
                 </ul>
                 <div id='tab-preview' class='tab-content current'>
@@ -49,9 +49,16 @@ limitations under the License.
                 </div>
             </div>
             <div class="content">
-                <h2>Status</h2>
+                <h2>People in Video</h2>
                 <div id="peopleInVideo"></div>
-                
+
+                <h2>Reload user data
+                     <button class="btn btn-default" type="button"
+                            id="reloadNetworkDataBtn">
+                        Start
+                    </button>
+                </h2>
+				<!-- 
                 <h2>Training
                     <input type="checkbox" checked data-toggle="toggle"
                            id="trainingChk">
@@ -60,7 +67,6 @@ limitations under the License.
                     <input type="text" class="form-control" id="addPersonTxt">
                 </div>
                 <br/>
-				<!-- 
                 <h2>Servers: <span id="serverStatus"></span></h2>
                 <div class="btn-group" role="group" id="serverBtn">
                     <button type="button" class="btn btn-default active">Local</button>
@@ -117,12 +123,10 @@ limitations under the License.
      }
 
      $("#serverBtn.btn-group > .btn").click(changeServerCallback);
-     $("#addPersonBtn").click(addPersonCallback);
-     $("#addPersonTxt").pressEnter(addPersonCallback);
-     $("#trainingChk").change(trainingChkCallback);
+     $("#reloadNetworkDataBtn").click(reloadNetworkDataCallback);
 
      redrawPeople();
      // createSocket("ws://facerec.cmusatyalab.org:9000", "CMU");
-     createSocket("ws:" + window.location.hostname + ":9001", "Local");
+     createSocket("ws:" + window.location.hostname + ":9003", "Local");
     </script>
 </html>

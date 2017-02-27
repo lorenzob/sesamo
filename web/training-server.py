@@ -19,7 +19,9 @@
 # Applicazione REST per il training della rete a partire dalle foto
 # 
 # 1. avvio indicizzazione (callback di notifica fine indicizzazione?)
-# 2. status indicizzazione(?)
+#
+# 2. status indicizzazione
+#
 # 3. riceve pacchetto foto(?)
 #
 #####################################################################
@@ -81,17 +83,17 @@ parser.add_argument('--networkModel', type=str, help="Path to Torch network mode
                     default=os.path.join(openfaceModelDir, 'nn4.small2.v1.t7'))
 parser.add_argument('--imgDim', type=int,
                     help="Default image dimension.", default=SAMPLES_IMG_SIZE)
-parser.add_argument('--cuda', action='store_true')
+parser.add_argument('--cuda', action='store_false')
 parser.add_argument('--unknown', type=bool, default=False,
                     help='Try to predict unknown people')
-parser.add_argument('--port', type=int, default=9000,
+parser.add_argument('--port', type=int, default=9002,
                     help='WebSocket Port')
 
 args = parser.parse_args()
 
-align = openface.AlignDlib(args.dlibFacePredictor)
+#align = openface.AlignDlib(args.dlibFacePredictor)
 net = openface.TorchNeuralNet(args.networkModel, imgDim=args.imgDim,
-                              cuda=True)
+                              cuda=args.cuda)
 
 def ensure_dir(f):
     d = os.path.dirname(f)
@@ -132,11 +134,10 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
 
     def __init__(self):
         self.images = {}
-        self.training = True
+        self.training = False
         self.people = []
         self.svm = None
-        if args.unknown:
-            self.unknownImgs = np.load("./examples/web/unknown.npy")
+        ensure_dir(self.userDataDir)
         
         # Qui non va bene, scatta sulla prima connessione
         # self.doTraining()
@@ -147,6 +148,10 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
 
     def onOpen(self):
         print("WebSocket connection open.")
+        msg = {
+            "type":"IDENTITIES", 
+            "identities": ["Ready"]}
+        self.sendMessage(json.dumps(msg))
 
     def onClose(self, wasClean, code, reason):
         print("WebSocket connection closed: {0}".format(reason))
@@ -222,9 +227,10 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
             "identities":userFreq}
         self.sendMessage(json.dumps(msg))
 
-        #print(userFreq)
         self.le = newLe
         self.svm = newSvm
+        
+        self.training = False
         
         print "Training done."
         return userFreq
@@ -234,15 +240,22 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         msg = json.loads(raw)
         print("Received {} message of length {}.".format(
             msg['type'], len(raw)))
+        if msg['type'] == "NULL":
+            # handshake iniziale
+            self.sendMessage('{"type": "NULL"}')
         if msg['type'] == "START_TRAINING":
-            self.training = msg['val']
             
             if self.training:
-                self.currentTrainingSubject = msg['extra']
+                print("Training already running")
+                msg = {
+                    "type":"IDENTITIES", 
+                    "identities": ["Training already running"]}
+                self.sendMessage(json.dumps(msg))
             else:
-                self.currentTrainingSubject = None
                 
-                # asynch training                
+                self.training = True
+                
+                # asynch training
                 new_callback_function = \
                     lambda new_name: self.trainingCallback(new_name)
                 
@@ -265,51 +278,56 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
 
     def trainFromFolder(self, net, userDataDir):
 
-        msg = {
-            "type": "IDENTITIES",
-            "identities": "Updating network data..."
-        }
-        # Non appare...
-        #self.sendMessage(json.dumps(msg))
+        try:
+
+            msg = {
+                "type": "IDENTITIES",
+                "identities": ["Updating network data..."]
+            }
+            self.sendMessage(json.dumps(msg))
+            
+            X = []
+            y = []
+            utenti = []
         
-        X = []
-        y = []
-        utenti = []
+            userDataFolders = os.walk(userDataDir).next()[1]
+            for userName in userDataFolders:
+                print "\n Reading images for " + userName
     
-        userDataFolders = os.walk(userDataDir).next()[1]
-        for userName in userDataFolders:
-            print "\n Reading images for " + userName
-
-            utenti.append(userName)
-            imgDir = userDataDir + "/" + userName
-            frameCount = 0
-            files = os.listdir(imgDir)
-            for userImg in files:
-                
-                sys.stdout.write('.')
-                msg = {
-                    "type":"IDENTITIES", 
-                    "identities":["Training {} [{}/{}] (please wait)...".format(userName, frameCount, len(files))]}
-                self.sendMessage(json.dumps(msg))
-                
-                # Take the image file name from the command line
-                file_name = imgDir + "/" + userImg
-                # Load the image
-                image = cv2.imread(file_name)
-                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-                rep = net.forward(image)
-                X.append(rep)
-                y.append(userName)
-                
-                frameCount = frameCount+1
+                utenti.append(userName)
+                imgDir = userDataDir + "/" + userName
+                frameCount = 0
+                files = os.listdir(imgDir)
+                for userImg in files:
+                    
+                    sys.stdout.write('.')
+                    msg = {
+                        "type":"IDENTITIES", 
+                        "identities":["Training {} [{}/{}] (please wait)...".format(userName, frameCount, len(files))]}
+                    self.sendMessage(json.dumps(msg))
+                    
+                    # Take the image file name from the command line
+                    file_name = imgDir + "/" + userImg
+                    # Load the image
+                    image = cv2.imread(file_name)
+                    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    
+                    rep = net.forward(image)
+                    X.append(rep)
+                    y.append(userName)
+                    
+                    frameCount = frameCount+1
+            
+            # Fine training
+            X = np.vstack(X)
+            y = np.array(y)
+            
+            print "\n Fine training"
+            return X, y, utenti
         
-        # Fine training
-        X = np.vstack(X)
-        y = np.array(y)
-        
-        print "\n Fine training"
-        return X, y, utenti
+        except Exception as ex:
+            print "Exception in asyncTraining " + str(ex) 
+            print "Unexpected error:", sys.exc_info()[0]          
 
 
 if __name__ == '__main__':
