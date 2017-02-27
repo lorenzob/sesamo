@@ -412,8 +412,8 @@ function reloadNetworkDataCallback(el) {
 function setTabLinks() {
 	
 	assignHref('goto-enrollment-link', 'index.html', 8001)
-	assignHref('goto-training-link', 'training-index.html', 8002)
-	assignHref('goto-recognition-link', 'recognition-index.html', 8003)
+	assignHref('goto-training-link', 'training.html', 8002)
+	assignHref('goto-recognition-link', 'recognition.html', 8003)
 }
 
 function assignHref(anchorId, page, port) {
