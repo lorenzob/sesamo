@@ -157,14 +157,18 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         print("WebSocket connection closed: {0}".format(reason))
     
     def asyncTraining(self):
+        
         print("asyncTraining started...")
         self.doTraining()
-        print("asyncTraining finished")
+        # per qualche magico motivo qui non arriva...
+        print("asyncTraining finished.")
 
     def trainingCallback(self, userFreq):
         print "Callback: " + str(userFreq)
 
     def doTraining(self):
+        
+        inizio = time.time()
         
         newLe = None
         newSvm = None
@@ -187,7 +191,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         # In un commento dicevano che dai loro test 
         # il semplice SVC funziona bene quanto il 
         # piu' complesso GridSearchCV
-        if 1 == 1:
+        if 1 == 2:
             newSvm = SVC(C=1, kernel='linear', probability=True)
         else:
             param_grid = [{'C':[1, 10, 100, 1000], 
@@ -232,7 +236,8 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         
         self.training = False
         
-        print "Training done."
+        elapsed = time.time() - inizio
+        print "Training done ({}).".format(elapsed)
         return userFreq
 
     def onMessage(self, payload, isBinary):
