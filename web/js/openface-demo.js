@@ -340,7 +340,7 @@ function drawBoxes(ids) {
         
         context.font = "14px Arial";
         context.fillStyle = stringToColour(nome) 
-        context.fillText(nome + " (" + conf + ")", x + pos.x, y + pos.y - 5);
+        context.fillText(nome + " (" + conf + ")", x + pos.left, y + pos.top - 5);
         context.closePath();
     }
 }
@@ -411,9 +411,9 @@ function reloadNetworkDataCallback(el) {
 
 function setTabLinks() {
 	
-	assignHref('goto-enrollment-link', 'index.html', 8001)
-	assignHref('goto-training-link', 'training.html', 8002)
-	assignHref('goto-recognition-link', 'recognition.html', 8003)
+	assignHref('goto-enrollment-link', 'index.html', 8000)
+	assignHref('goto-training-link', 'training.html', 8000)
+	assignHref('goto-recognition-link', 'recognition.html', 8000)
 }
 
 function assignHref(anchorId, page, port) {

@@ -260,7 +260,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                         print("Skipping frame save: too close")
 
                     location = [box.left(), box.bottom(), box.right(), box.top()]
-                    matches.append([nome + "?", 0, location])
+                    matches.append([nome + "(?)", 0, location])
                 
                 frames = self.trainingFramesCount
                 msg = {
@@ -280,7 +280,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                               thickness=2)
 
                 location = [box.left(), box.bottom(), box.right(), box.top()]
-                matches.append(["???", 0, location])
+                matches.append(["New user", 0, location])
 
         msg = {
             "type": "MATCHES",
