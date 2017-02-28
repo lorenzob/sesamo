@@ -31,6 +31,7 @@
 
 import os
 import sys
+
 fileDir = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(os.path.join(fileDir, "..", ".."))
 
@@ -53,6 +54,7 @@ import StringIO
 import urllib
 import base64
 import time
+import copy
 
 from sklearn.decomposition import PCA
 from sklearn.grid_search import GridSearchCV
@@ -188,6 +190,39 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         print("WebSocket connection closed: {0}".format(reason))
 
 
+    def startAsyncSpeakerRecognition(self, matches):
+        new_callback_function = \
+            lambda new_name: self.speakerRecognitionCallback(new_name)
+        
+        self.pool.apply_async(
+            self.asyncSpeakerRecognition,
+            args=[matches],
+            callback=new_callback_function)
+        
+    def asyncSpeakerRecognition(self, matches):
+
+        from websocket import create_connection
+        ws = create_connection("ws://localhost:9004/")
+        print "Sending 'Hello, World'..."
+        
+        msg = {
+            "type": "START_RECORDING",
+            "matches": matches
+        }
+        
+        ws.send(json.dumps(msg))
+        print "Sent. Receiving..."
+        result =  ws.recv()
+        print "Received '%s'" % result
+        ws.close()
+        
+        return "error"
+                
+    def speakerRecognitionCallback(self, audio_file_and_video_matches):
+        
+        print("check voice for " + audio_file_and_video_matches)
+
+
     def updateLocalSVMDefinitionOnDisk(self):
 
         # TODO: tutto da implementare, l'idea cmq e' quella qui sotto
@@ -266,12 +301,16 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
             location = [box.left(), box.bottom(), box.right(), box.top()]
             matches.append([nome, confidence, location])
             
-            
             text = "{} (confidence {})".format(nome, confidence)
             usersInFrame.append(text)
             
             #self.sendMessage(json.dumps(msg))
         print(matches)
+        
+        if matches:
+            # Ho un match, inizio a registrare
+            asynch_matches = copy.deepcopy(matches)
+            self.startAsyncSpeakerRecognition(asynch_matches)
 
         msg = {
             "type": "IDENTITIES",
