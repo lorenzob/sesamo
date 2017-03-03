@@ -4,6 +4,10 @@ set -e -u
 
 function die { echo $1; exit 42; }
 
+###### IMPORTANTE: PYTHONPATH ######
+export PYTHONPATH=../speak
+
+HTTP_PORT=0
 WEBSOCKET_PORT=9004
 
 case $# in
@@ -21,7 +25,7 @@ cd $(dirname $0)
 
 cat <<EOF
 
-Starting the HTTP server on port $HTTP_PORT
+#Starting the HTTP server on port $HTTP_PORT
 and the WebSocket server on port $WEBSOCKET_PORT.
 
 Access the demo through the HTTP server in your browser.

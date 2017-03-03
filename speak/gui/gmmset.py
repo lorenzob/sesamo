@@ -92,10 +92,23 @@ class GMMSet(object):
 
 
 class GMMSetPyGMM(GMMSet):
+    
+    def predict_one_with_score(self, x):
+        scores = [gmm.score_all(x) / len(x) for gmm in self.gmms]
+        print("GMM scores: " + str(scores))
+        #print(operator)
+        p = sorted(scores)
+        #print scores, p[-1] - p[-2]
+        bestMatchIndex = max(enumerate(scores), key=operator.itemgetter(1))[0]
+        maxScore = scores[bestMatchIndex]
+        print(self.y)
+        #print max(enumerate(scores), key=operator.itemgetter(1))[0]
+        #print scores[bestMatchIndex]
+        res = self.y[bestMatchIndex]
+        return (res, maxScore)
+    
     def predict_one(self, x):
         scores = [gmm.score_all(x) / len(x) for gmm in self.gmms]
-        print("scores: " + str(scores))
-        print(operator)
         p = sorted(scores)
         #print scores, p[-1] - p[-2]
         return self.y[max(enumerate(scores), key=operator.itemgetter(1))[0]]

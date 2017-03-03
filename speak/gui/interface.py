@@ -92,7 +92,7 @@ class ModelInterface(object):
             print tb.format_exc()
             return None
         try:
-            return self.gmmset.predict_one(feat)
+            return self.gmmset.predict_one_with_score(feat)
         except:
             print "Unexpected error:", sys.exc_info()[0]
 

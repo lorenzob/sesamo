@@ -181,6 +181,13 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         elif msg['type'] == "RELOAD_SVM":
             print("RELOAD_SVM")
             loadDefaultSVMData()
+            
+            msg = {
+                "type": "IDENTITIES",
+                "identities": ["User data reloaded"]
+            }
+            self.sendMessage(json.dumps(msg))
+            
         elif msg['type'] == "SVM_INFOS":
             print("SVM_INFOS")
         else:
@@ -211,9 +218,9 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         }
         
         ws.send(json.dumps(msg))
-        print "Sent. Receiving..."
+        #print "Sent. Receiving..."
         result =  ws.recv()
-        print "Received '%s'" % result
+        print "Audio result '%s'" % result
         ws.close()
         
         return "error"
@@ -309,8 +316,8 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         
         if matches:
             # Ho un match, inizio a registrare
-            asynch_matches = copy.deepcopy(matches)
-            self.startAsyncSpeakerRecognition(asynch_matches)
+            #asynch_matches = copy.deepcopy(matches)
+            #self.startAsyncSpeakerRecognition(asynch_matches)
 
         msg = {
             "type": "IDENTITIES",

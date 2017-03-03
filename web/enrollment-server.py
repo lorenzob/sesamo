@@ -88,13 +88,13 @@ openfaceModelDir = os.path.join(modelDir, 'openface')
 parser = argparse.ArgumentParser()
 parser.add_argument('--dlibFacePredictor', type=str, help="Path to dlib's face predictor.",
                     default=os.path.join(dlibModelDir, "shape_predictor_68_face_landmarks.dat"))
-parser.add_argument('--networkModel', type=str, help="Path to Torch network model.",
-                    default=os.path.join(openfaceModelDir, 'nn4.small2.v1.t7'))
-parser.add_argument('--imgDim', type=int,
-                    help="Default image dimension.", default=SAMPLES_IMG_SIZE)
-parser.add_argument('--cuda', action='store_false')
-parser.add_argument('--unknown', type=bool, default=False,
-                    help='Try to predict unknown people')
+#parser.add_argument('--networkModel', type=str, help="Path to Torch network model.",
+#                    default=os.path.join(openfaceModelDir, 'nn4.small2.v1.t7'))
+#parser.add_argument('--imgDim', type=int,
+#                    help="Default image dimension.", default=SAMPLES_IMG_SIZE)
+#parser.add_argument('--cuda', action='store_false')
+#parser.add_argument('--unknown', type=bool, default=False,
+#                    help='Try to predict unknown people')
 parser.add_argument('--port', type=int, default=9001,
                     help='WebSocket Port')
 
@@ -180,7 +180,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                 
                 msg = {
                     "type":"IDENTITIES", 
-                    "identities": ["Training completato per {}. New frames: {}".format(nome, self.trainingFramesCount)]}
+                    "identities": ["Enrollment completed for {}. New frames: {}".format(nome, self.trainingFramesCount)]}
                 self.sendMessage(json.dumps(msg))
         else:
             print("Warning: Unknown message type: {}".format(msg['type']))
@@ -217,7 +217,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         if self.training:
             
             nome = self.currentTrainingSubject
-            text = "Training: {}".format(nome);
+            text = "Enrolling: {}".format(nome);
             cv2.putText(annotatedFrame, text, (5, 20),
                         cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.4,
                         color=(0, 255, 0), thickness=1)
@@ -225,13 +225,13 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
             if len(bbs) > 1:
                 msg = {
                     "type": "IDENTITIES",
-                    "identities": ["Training problem: too many people, only {} should be present".format(nome)]
+                    "identities": ["Enrollment problem: too many people, only {} should be present".format(nome)]
                 }
                 self.sendMessage(json.dumps(msg))
             elif len(bbs) == 0:
                 msg = {
                     "type": "IDENTITIES",
-                    "identities": ["Training problem: nobody's there. {} should be present".format(nome)]
+                    "identities": ["Enrollment problem: nobody's there. {} should be present".format(nome)]
                 }
                 self.sendMessage(json.dumps(msg))
             else:
@@ -265,7 +265,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                 frames = self.trainingFramesCount
                 msg = {
                     "type": "IDENTITIES",
-                    "identities": ["Training {}...".format(nome), "Captured frames: {} (we need about 100)".format(frames)]
+                    "identities": ["Enrolling {}...".format(nome), "Captured frames: {} (we need about 100)".format(frames)]
                 }
                 self.sendMessage(json.dumps(msg))
                                 

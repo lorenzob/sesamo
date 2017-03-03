@@ -33,6 +33,7 @@ class AudioRecorder():
     
     inner_thread = None
     stopRecordingTime = 0
+    clear_buffer_request = False
 
     # Audio class based on pyAudio and Wave
     def __init__(self):
@@ -45,7 +46,6 @@ class AudioRecorder():
         self.format = pyaudio.paInt16
         self.audio_filename = "temp_audio.wav"
 
-        print("new AudioRecorder")
         self.audio = pyaudio.PyAudio()
 
         # PER DEBUG
@@ -71,23 +71,31 @@ class AudioRecorder():
         print("audio thread recording...")
         self.stream.start_stream()
         while(self.recording == True and not self.time_expired()):
+
+            one_second_of_recording = 43
+            if len(self.audio_frames) > one_second_of_recording * 60:
+                self.audio_frames = []
+            
             data = self.stream.read(self.frames_per_buffer) 
             self.audio_frames.append(data)
+            
+            
         print("audio thread recording completed.")
         
         self.stream.stop_stream()
         #self.stream.close()
         #self.audio.terminate()
-        print("audio closed")
+        #print("audio closed")
            
         print("Saving file to {} ...".format(self.audio_filename))       
+        print("Audio frames {} ...".format(len(self.audio_frames)))       
         waveFile = wave.open(self.audio_filename, 'wb')
         waveFile.setnchannels(self.channels)
         waveFile.setsampwidth(self.audio.get_sample_size(self.format))
         waveFile.setframerate(self.rate)
         waveFile.writeframes(b''.join(self.audio_frames))
         waveFile.close()
-        print("Save file done")             
+        #print("Save file done")             
         
         self.recording = False
         print("audio thread finished.")
@@ -95,7 +103,7 @@ class AudioRecorder():
     # Finishes the audio recording therefore the thread too    
     def stop(self):
 
-        print("stop called")
+        #print("stop called")
         if self.recording==True:
             self.recording = False
             self.inner_thread.join()
@@ -112,7 +120,7 @@ class AudioRecorder():
     # Launches the audio recording function using a thread
     def start(self, recordingLengthSeconds):
 
-        print("start called")
+        #print("start called")
         
         if self.isRecording():
             print("already recording")
@@ -133,6 +141,9 @@ class AudioRecorder():
         
     def extend(self, recordingLengthSeconds):
         self.stopRecordingTime = time.time() + recordingLengthSeconds
+        
+    def clear_buffer(self):
+        self.clear_buffer_request = true
     
     def isRecording(self):
         return self.recording == True

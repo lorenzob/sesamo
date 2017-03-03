@@ -49,8 +49,10 @@ Examples:
     ret = parser.parse_args()
     return ret
 
+m_enroll = ModelInterface()
+
 def task_enroll(input_dirs, output_model):
-    m = ModelInterface()
+    
     input_dirs = [os.path.expanduser(k) for k in input_dirs.strip().split()]
     dirs = itertools.chain(*(glob.glob(d) for d in input_dirs))
     dirs = [d for d in dirs if os.path.isdir(d)]
@@ -68,26 +70,46 @@ def task_enroll(input_dirs, output_model):
         print "Label {0} has files {1}".format(label, ','.join(wavs))
         for wav in wavs:
             fs, signal = read_wav(wav)
-            m.enroll(label, fs, signal)
+            signal = m_enroll.filter(fs, signal)
+            m_enroll.enroll(label, fs, signal)
 
-    m.train()
-    m.dump(output_model)
+    m_enroll.train()
+    m_enroll.dump(output_model)
 
-def task_predict(input_files, input_model):
+def task_predict(input_file, input_model):
+
+    # FS = 8000
     m = ModelInterface.load(input_model)
-    for f in [input_files]:
-        fs, signal = read_wav(f)
-        try:
-            label = m.predict(fs, signal)
-        except:
-            print "Exception in asyncTraining " + str(ex) 
-            print "Unexpected error:", sys.exc_info()[0]            
+    fs_noise, noise = read_wav("noise.wav")
+    m.init_noise(fs_noise, noise)
+    
+            
+    #for f in [input_files]:
+    try:
+        fs, signal = read_wav(input_file)
         
-        print f, '->', label
+        print("freq " + str(fs))
+        
+        signal = m.filter(fs, signal)
+        print("len " + str(len(signal)))
+        if len(signal) < 50:
+            return None
+        
+        print("AA")
+        label = m.predict(fs, signal)
+        print input_file, '->', label
+        return label
+    except:
+        print "Unexpected error:", sys.exc_info()[0]            
+    
+m = None
 
 if __name__ == '__main__':
     global args
     args = get_args()
+
+    fs_noise, noise = read_wav("noise.wav")
+    m_enroll.init_noise(fs_noise, noise)
 
     task = args.task
     if task == 'enroll':

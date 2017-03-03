@@ -37,11 +37,16 @@ class VAD(object):
 if __name__ == "__main__":
     from scipy.io import wavfile
     import sys
+    import os
+
+    cwd = os.path.dirname(os.path.realpath(__file__))
+    print(cwd)
+    
     fs, bg = wavfile.read(sys.argv[1])
     vad = VAD()
     vad.init_noise(fs, bg)
 
     fs, sig = wavfile.read(sys.argv[2])
     vaded, intervals = vad.filter(fs, sig)
-    wavfile.write('vaded.wav', fs, vaded)
+    wavfile.write('../../denoised.wav', fs, vaded)
 
