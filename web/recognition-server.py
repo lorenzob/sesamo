@@ -318,6 +318,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
             # Ho un match, inizio a registrare
             #asynch_matches = copy.deepcopy(matches)
             #self.startAsyncSpeakerRecognition(asynch_matches)
+	    pass
 
         msg = {
             "type": "IDENTITIES",
