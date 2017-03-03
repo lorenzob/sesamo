@@ -336,7 +336,7 @@ function drawBoxes(ids) {
         context.lineWidth = 3;
         context.strokeStyle = stringToColour(nome);
         //context.strokeStyle = "LimeGreen" 
-        context.strokeRect(x + pos.x, y + pos.y, width, height);
+        context.strokeRect(x + pos.left, y + pos.top, width, height);
         
         context.font = "14px Arial";
         context.fillStyle = stringToColour(nome) 
@@ -375,7 +375,7 @@ function trainingChkCallback() {
 	
     var newPerson = $("#addPersonTxt").val();
     if (training && newPerson.trim() == '') {
-    	alert("Please specify person name for training.")
+    	alert("Please specify a name for this enrollment")
     	$("#trainingChk").bootstrapToggle('off');
     	return false;
     }

@@ -83,6 +83,7 @@ parser.add_argument('--port', type=int, default=9002,
                     help='WebSocket Port')
 args = parser.parse_args()
 
+audio_recorder = None
 
 def ensure_dir(f):
     d = os.path.dirname(f)
@@ -122,7 +123,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
 
             asynch_matches = msg['matches']
             
-            print("asynch_matches: " + str(asynch_matches))
+            print("Start recording on matches: " + str(asynch_matches))
             
             # Se fatto asincrono va in Segmentation Fault
             #self.startAsyncSpeakerRecognition(asynch_matches)
@@ -137,8 +138,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
             }
             self.sendMessage(json.dumps(msg))
             
-            print("Fine FRAME")
-            
+            #print("Fine FRAME")
 
         elif msg['type'] == "SVM_INFOS":
             print("SVM_INFOS")
@@ -158,20 +158,19 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
             args=[matches],
             callback=new_callback_function)
         
-    audio_recorder = None
-
     def asyncSpeakerRecognition(self, matches):
     
         import AVRecorder
+        global audio_recorder
  
-        if self.audio_recorder == None:
-            self.audio_recorder = AudioRecorder()
+        if audio_recorder == None:
+            audio_recorder = AudioRecorder()
        
         print("asyncSpeakerRecognition started...")
         print("Invoke start recording")
         try:
-            file_name = self.audio_recorder.start(10)
-            self.audio_recorder.waitForRecordingCompletion()
+            file_name = audio_recorder.start(1)
+            audio_recorder.waitForRecordingCompletion()
             return (file_name, matches)
         except Exception as ex:
             print "Exception in asyncTraining " + str(ex) 
@@ -190,28 +189,25 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         audio_file = str(audio_file_and_video_matches[0])
 
         if audio_file == None:
+            print("too short")
+            #audio_recorder.clear_buffer()
             return
         
-        print "-- Callback: " + str(audio_file)
+        #print "-- Callback: " + str(audio_file)
         matches = audio_file_and_video_matches[1]
-        print "-- Callback: " + str(matches)
+        #print "-- Callback: " + str(matches)
         
-        # TODO: Singolo subject
-        match = matches[0]
-        print "-- Callback: " + str(match)
-        name = match[0] 
-        print "-- Callback: " + str(name)
+        #firstMatch = matches[0]
+        #name = match[0] 
         
-        print("check voice for " + name)
+        #print("check voice for " + str(matches))
 
-        print("cwd " + cwd + "<")
-        print("audio_file " + audio_file + "<")
+        # audio_model = name.lower() + ".out"
+        audio_model = "all.out"
+        result = SpeakerRecognition.task_predict(cwd + "/" + audio_file, audio_model)
+        print "-- SpeakerRecognition res: " + str(result)
 
-        audio_model = name.lower() + ".out"
-        confidence = SpeakerRecognition.task_predict(cwd + "/" + audio_file, audio_model)
-        print "-- SpeakerRecognition res: " + str(confidence)
-
-        return confidence
+        return result
 
 
 if __name__ == '__main__':

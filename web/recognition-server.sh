@@ -4,6 +4,7 @@ set -e -u
 
 function die { echo $1; exit 42; }
 
+HTTP_PORT=0
 WEBSOCKET_PORT=9003
 
 case $# in
@@ -21,7 +22,7 @@ trap 'kill $(jobs -p)' EXIT
 
 cat <<EOF
 
-Starting the HTTP server on port $HTTP_PORT
+#Starting the HTTP server on port $HTTP_PORT
 and the WebSocket server on port $WEBSOCKET_PORT.
 
 Access the demo through the HTTP server in your browser.
