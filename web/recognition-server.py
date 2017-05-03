@@ -279,6 +279,8 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         # Trovare volti (da capire se serve il BGR2RGB)
         rgbImg = cv2.cvtColor(buf, cv2.COLOR_BGR2RGB)
         #self.win.set_image(annotatedFrame) #raw_input("Press Enter to continue...")
+
+        #cv2.imwrite("forwarded.jpg", rgbImg)
         
         # align
         bbs = align.getAllFaceBoundingBoxes(rgbImg)

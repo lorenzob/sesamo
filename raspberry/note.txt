@@ -1,1 +1,9 @@
-Prova
+3 maggio:
+
+
+sudo pip install txaio
+
+sudo pip install Twisted==16.4.1
+
+sudo pip install tornado imagehash
+
