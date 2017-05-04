@@ -9,7 +9,9 @@ wpi.wiringPiSetupSys()
 
 app.get('/', function (req, res) {
 
-    var pin = 18;
+    var doorPin = 18;
+    var greenPin = 18;
+    var redPin = 4;
 
     var value = wpi.digitalRead(pin)
 
@@ -20,11 +22,15 @@ app.get('/', function (req, res) {
 
     if (open == '1') {
     	console.log('Opening')
-    	wpi.digitalWrite(pin, 0)
+    	//wpi.digitalWrite(doorPin, 0)
+    	wpi.digitalWrite(redPin, 0)
+    	wpi.digitalWrite(greenPin, 1)
     }
     else {
     	console.log('Closing')
-    	wpi.digitalWrite(pin, 1)
+    	//wpi.digitalWrite(doorPin, 1)
+    	wpi.digitalWrite(redPin, 1)
+    	wpi.digitalWrite(greenPin, 0)
     }
         
     value = wpi.digitalRead(pin)

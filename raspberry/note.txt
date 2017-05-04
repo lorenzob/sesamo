@@ -7,3 +7,31 @@ sudo pip install Twisted==16.4.1
 
 sudo pip install tornado imagehash
 
+sudo pip install imutils
+
+
+Avviare node.js:
+
+sudo apt-get install nodejs npm
+npm install express
+
+
+npm install webworker-threads
+
+
+LED
+
+Rosso: wPi: 7 (physical: 7, BCM: 4)
+
+gpio mode 7 out
+gpio write 7 1
+
+
+Verde: wPi: 1 (physical: 12, BCM: 18)
+
+gpio mode 1 out
+gpio write 1 1
+
+
+
+

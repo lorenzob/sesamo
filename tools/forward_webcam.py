@@ -30,9 +30,13 @@ def connect():
     print("connect ok: " + str(control_ws))
     
     IOLoop.instance().stop()
+    
+wait = False
 
 @gen.engine
 def sendMessage(frame, identity):
+
+    global wait
 
     cnt = cv2.imencode('.jpg', frame)[1]
     dataURL = "data:image/jpeg;base64,"+ base64.b64encode(cnt)
@@ -40,6 +44,14 @@ def sendMessage(frame, identity):
     if control_ws is not None:
         #img = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD//gATQ3JlYXRlZCB3aXRoIEdJTVD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wgARCAAKAAoDAREAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAABwUG/8QAFwEAAwEAAAAAAAAAAAAAAAAAAQMEBv/aAAwDAQACEAMQAAABS037kOmrqN4dT//EABoQAAICAwAAAAAAAAAAAAAAAAIFAAQDEzX/2gAIAQEAAQUCY2LdFiOFcAoeJqCf/8QAHxEAAQQABwAAAAAAAAAAAAAAAQACAwQFERIyNFGB/9oACAEDAQE/AZLMxmEp3IvtuOZBWI8weLW7tf/EABoRAAICAwAAAAAAAAAAAAAAAAACERIBAzP/2gAIAQIBAT8Bwi1qQhp5kH//xAAhEAAABAUFAAAAAAAAAAAAAAAAAQIEAwURFDIhMTOCkf/aAAgBAQAGPwJnLmbG4lkbljV2BJJaKFpkFdhiXg//xAAaEAADAQADAAAAAAAAAAAAAAAAAREhMUHx/9oACAEBAAE/Id03tXPd6gpxSkC248Mf/9oADAMBAAIAAwAAABBzD//EABsRAAICAwEAAAAAAAAAAAAAAAABESExYZHB/9oACAEDAQE/EKOUiK8HyYd4HhyGx0//xAAZEQEBAAMBAAAAAAAAAAAAAAABABExUYH/2gAIAQIBAT8QIxqBMCW32w5f/8QAHBABAAMAAgMAAAAAAAAAAAAAAQARITFBccHw/9oACAEBAAE/ECubkm676o3eYZappgFHcAIEWw+WfPep/9k="
         control_ws.write_message('{"type":"FRAME","dataURL":"' + dataURL + '","identity":"' + identity + '"}', binary=False)
+        wait = True
+        
+        while True:
+            msg = yield control_ws.read_message()
+            #print("msg: " + msg)
+            if "PROCESSED" in msg:
+                wait = False
+                break
     else:
         print("no connection")
     
@@ -63,8 +75,9 @@ def forwardFrames():
     
     	rgbImg = frame
     
-        IOLoop.instance().add_callback(lambda: sendMessage(frame, "test"))
-        IOLoop.instance().start()
+        if not wait:
+            IOLoop.instance().add_callback(lambda: sendMessage(frame, "test"))
+            IOLoop.instance().start()
         
     	# show the frame and update the FPS counter
     	cv2.imshow("Frame", frame)

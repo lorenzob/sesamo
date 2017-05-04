@@ -73,7 +73,7 @@ import openface
 
 import requests
 
-raspberry_url = 'http://192.168.2.117:3000'
+raspberry_url = 'http://192.168.0.6:3000'
 
 SAMPLES_IMG_SIZE = 96
 
