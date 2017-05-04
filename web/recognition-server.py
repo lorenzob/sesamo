@@ -146,6 +146,8 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
     # Temp: solo per l'immagine di controllo
     import dlib
     import time
+    
+    win = dlib.image_window()
 
     from multiprocessing.dummy import Pool
     pool = Pool(processes=1)
@@ -196,6 +198,17 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
     def onClose(self, wasClean, code, reason):
         print("WebSocket connection closed: {0}".format(reason))
 
+    def remoteOpenCallback(self, openFlag):
+        print("remoteOpen completed " + str(openFlag))
+
+    def startAsyncRemoteOpen(self, openFlag):
+        open_callback_function = \
+            lambda new_name: self.remoteOpenCallback(new_name)
+        
+        self.pool.apply_async(
+            self.remoteOpen,
+            args=[openFlag],
+            callback=open_callback_function)
 
     def startAsyncSpeakerRecognition(self, matches):
         new_callback_function = \
@@ -278,7 +291,8 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
 
         # Trovare volti (da capire se serve il BGR2RGB)
         rgbImg = cv2.cvtColor(buf, cv2.COLOR_BGR2RGB)
-        #self.win.set_image(annotatedFrame) #raw_input("Press Enter to continue...")
+        
+        #raw_input("Press Enter to continue...")
 
         #cv2.imwrite("forwarded.jpg", rgbImg)
         
@@ -313,6 +327,13 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
             text = "{} (confidence {})".format(nome, confidence)
             usersInFrame.append(text)
             
+            cv2.putText(annotatedFrame, text, (5, 20),
+                        cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.4,
+                        color=(0, 255, 0), thickness=1)
+            bl = (box.left(), box.bottom()); tr = (box.right(), box.top())
+            cv2.rectangle(annotatedFrame, bl, tr, color=(153, 255, 204),
+                          thickness=1)
+            
             #self.sendMessage(json.dumps(msg))
         print(matches)
         
@@ -320,7 +341,9 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
             # Ho un match, inizio a registrare
             #asynch_matches = copy.deepcopy(matches)
             #self.startAsyncSpeakerRecognition(asynch_matches)
-	    pass
+            self.startAsyncRemoteOpen(1)
+        else:
+            self.startAsyncRemoteOpen(0)
 
         msg = {
             "type": "IDENTITIES",
@@ -331,6 +354,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
 #        plt.imshow(annotatedFrame)
 #        plt.xticks([])
 #        plt.yticks([])
+        self.win.set_image(annotatedFrame)
 
 #        imgdata = StringIO.StringIO()
         #plt.savefig(imgdata, format='png')
@@ -350,7 +374,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         self.sendMessage(json.dumps(msg))
         
 
-    def open(self, openFlag):
+    def remoteOpen(self, openFlag):
 
         print("Remote open command: '{0}'".format(openFlag))
         

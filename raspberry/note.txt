@@ -14,21 +14,38 @@ Avviare node.js:
 
 sudo apt-get install nodejs npm
 npm install express
+npm install wiring-pi
+
+# Bluetooth
+#npm install noble
+
+Se si ottiene:
+
+pi@sesamo1:~/sesamo/sesamo/raspberry $ node main.js 
+Unable to determine hardware version. I see: Hardware	: BCM2835
+,
+ - expecting BCM2708 or BCM2709. Please report this to projects@drogon.net
+
+Risolvere con un downgrade del kernel:
+
+pi@sesamo1:~/sesamo/sesamo/raspberry $ sudo rpi-update 52241088c1da59a359110d39c1875cda56496764
 
 
-npm install webworker-threads
+#npm install webworker-threads
 
 
 LED
 
 Rosso: wPi: 7 (physical: 7, BCM: 4)
 
+gpio export 4 out
 gpio mode 7 out
 gpio write 7 1
 
 
 Verde: wPi: 1 (physical: 12, BCM: 18)
 
+gpio export 18 out
 gpio mode 1 out
 gpio write 1 1
 
