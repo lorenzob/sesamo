@@ -23,12 +23,12 @@ for file_name in sys.argv[1:]:
     # Run the HOG face detector on the image data.
     # The result will be the bounding boxes of the faces in our image.
     start = time.time()
-    detected_faces = face_detector(image, 0)
+    detected_faces = face_detector(image, 1)
     print("First: Detecting faces took {} seconds.".format(time.time() - start))
 
     for i in range(1,0):
         start = time.time()
-        detected_faces = face_detector(image, 0)
+        detected_faces = face_detector(image, 1)
         print("Detecting faces took {} seconds.".format(time.time() - start))
     
     # print("I found {} faces in the file {}".format(len(detected_faces), file_name))

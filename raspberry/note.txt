@@ -9,6 +9,8 @@ sudo pip install tornado imagehash
 
 sudo pip install imutils
 
+sudo pip install scikit-image
+
 
 Avviare node.js:
 
