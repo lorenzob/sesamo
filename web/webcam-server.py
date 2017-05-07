@@ -186,7 +186,7 @@ def connect():
     
     global control_ws
     
-    url = "ws://localhost:9003"
+    url = "ws://192.168.0.5:9003"
 
     print("connect")    
     control_ws = yield websocket_connect(url, None)
