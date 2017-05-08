@@ -32,6 +32,8 @@
 import os
 import sys
 
+from profilehooks import profile
+
 fileDir = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(os.path.join(fileDir, "..", ".."))
 
@@ -149,7 +151,12 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
     import dlib
     import time
     
+    import RecognitionService
+    
     win = dlib.image_window()
+
+    recognitionService = RecognitionService.RecognitionService()
+    recognitionService.loadDefaultSVMData()
 
     from multiprocessing.dummy import Pool
     pool = Pool(processes=4)
@@ -174,8 +181,17 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
             print str(e)
 
     frameCount = 0
+    
+    def processFrameCompleted(self, temp):
+        print("AAA processFrame completed " + str(temp))
+        try:
+            self.sendMessage('{"type": "PROCESSED"}')
+        except Exception, e:
+            print str(e)
 
     def onMessage(self, payload, isBinary):
+
+        print("onMessage (" + str(isBinary))
         
         try:
             self.frameCount += 1
@@ -186,36 +202,60 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                 if count > 1:
                     print("[INFO] approx. FPS: {:.2f}".format(count))
                 self.fps = FPS().start()
+
+            if isBinary:
+    
+                try:
+                    print("Binary")
+                    rawData = bytearray(payload)
+                    npdata = np.asarray(rawData)
+                    img = cv2.imdecode(npdata, cv2.IMREAD_UNCHANGED)
+    
+                    #self.win.set_image(img)
+    
+                    print("Invoke start process")
+                    
+                    self.recognitionService.startAsyncProcessFrame(rawData, "test", self.processFrameCompleted, binary=True)
+                    #self.sendMessage('{"type": "PROCESSED"}')
+                except Exception, e:
+                    print str(e)
+                return
+    
+            print("Non binary")
+            
+            raw = payload.decode('utf8')
+            msg = json.loads(raw)
+            if msg['type'] == "NULL":
+                # handshake iniziale ELIMINARE
+                print("Send NULL")
+                self.sendMessage('{"type": "NULL"}')
+            print("Received {} message of length {}.".format(
+                msg['type'], len(raw)))
+            if msg['type'] == "FRAME":
+                # singolo frame della webcam
+                #self.startAsyncProcessFrame(msg['dataURL'], msg['identity'], binary=False)
+                print("Send PROCESSED (non bin)")
+                self.sendMessage('{"type": "PROCESSED"}')
+            elif msg['type'] == "UPDATE_SVM":
+                print("UPDATE_SVM")
+                updateLocalSVMDefinitionOnDisk()
+            elif msg['type'] == "RELOAD_SVM":
+                print("RELOAD_SVM")
+                loadDefaultSVMData()
+                
+                msg = {
+                    "type": "IDENTITIES",
+                    "identities": ["User data reloaded"]
+                }
+                print("Send IDS")
+                self.sendMessage(json.dumps(msg))
+                
+            elif msg['type'] == "SVM_INFOS":
+                print("SVM_INFOS")
+            else:
+                print("Warning: Unknown message type: {}".format(msg['type']))
         except Exception, e:
             print str(e)
-        
-        raw = payload.decode('utf8')
-        msg = json.loads(raw)
-        if msg['type'] == "NULL":
-            # handshake iniziale ELIMINARE
-            self.sendMessage('{"type": "NULL"}')
-        print("Received {} message of length {}.".format(
-            msg['type'], len(raw)))
-        if msg['type'] == "FRAME":
-            # singolo frame della webcam
-            self.startAsyncProcessFrame(msg['dataURL'], msg['identity'])
-        elif msg['type'] == "UPDATE_SVM":
-            print("UPDATE_SVM")
-            updateLocalSVMDefinitionOnDisk()
-        elif msg['type'] == "RELOAD_SVM":
-            print("RELOAD_SVM")
-            loadDefaultSVMData()
-            
-            msg = {
-                "type": "IDENTITIES",
-                "identities": ["User data reloaded"]
-            }
-            self.sendMessage(json.dumps(msg))
-            
-        elif msg['type'] == "SVM_INFOS":
-            print("SVM_INFOS")
-        else:
-            print("Warning: Unknown message type: {}".format(msg['type']))
 
     def onClose(self, wasClean, code, reason):
         print("WebSocket connection closed: {0}".format(reason))
@@ -278,14 +318,14 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
     def processFrameCallback(self, openFlag):
         print("processFrame completed " + str(openFlag))
 
-    def startAsyncProcessFrame(self, dataURL, identity):
+    def startAsyncProcessFrame(self, dataURL, identity, binary):
         print("startAsyncProcessFrame")
         open_callback_function = \
             lambda new_name: self.remoteOpenCallback(new_name)
         
         self.pool.apply_async(
             self.processFrame,
-            args=[dataURL, identity],
+            args=[dataURL, identity, binary],
             callback=self.processFrameCallback)
 
     def updateLocalSVMDefinitionOnDisk(self):
@@ -314,7 +354,8 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         #os.rename(svmDefinitionFile, svmDefinitionFile + ".bak-" + str(now))
         os.rename(svmNewFile, userDataDir + "/" + svmDefinitionFile)
         
-    def processFrame(self, dataURL, identity):
+    #@profile
+    def processFrame(self, dataURL, identity, binary):
         
         try:
         
@@ -322,12 +363,19 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                 print("No svm")
                 return
             
-            head = "data:image/jpeg;base64,"
-            assert(dataURL.startswith(head))
-            imgdata = base64.b64decode(dataURL[len(head):])
-            imgF = StringIO.StringIO()
-            imgF.write(imgdata)
-            imgF.seek(0)
+            if binary:
+                print("Process binary image")
+                imgF = StringIO.StringIO() #buffer where image is stored
+                imgF.write(dataURL) #data is from the socket
+                imgF.seek(0)
+            else:
+                head = "data:image/jpeg;base64,"
+                assert(dataURL.startswith(head))
+                imgdata = base64.b64decode(dataURL[len(head):])
+                imgF = StringIO.StringIO()
+                imgF.write(imgdata)
+                imgF.seek(0)
+            
             img = Image.open(imgF)
     
             # A quanto pare dalla webcam arriva alla roverscia
@@ -397,6 +445,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                 "identities": usersInFrame
             }
             self.sendMessage(json.dumps(msg))
+            print("Send IDS (dentro process)")
     #        plt.figure()
     #        plt.imshow(annotatedFrame)
     #        plt.xticks([])
@@ -419,15 +468,55 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                 "identities": matches
             }
             self.sendMessage(json.dumps(msg))
-            
+            print("Send MATCHES (dentro process)")
             
         except Exception, e:
             print "Process frame: " + str(e)
         
         self.sendMessage('{"type": "PROCESSED"}')
+        print("Send PROCESSED (dentro process)")
+
+def init_yappi():
+  import atexit
+  import yappi
+
+  print('[YAPPI START]')
+  yappi.set_clock_type('wall')
+  yappi.start()
+
+  @atexit.register
+  def finish_yappi():
+    print('[YAPPI STOP]')
+
+    yappi.stop()
+
+    print('[YAPPI WRITE]')
+
+    stats = yappi.get_func_stats()
+
+    for stat_type in ['pstat', 'callgrind', 'ystat']:
+      print('writing /tmp/pants.{}'.format(stat_type))
+      stats.save('/tmp/pants.{}'.format(stat_type), type=stat_type)
+
+    print('\n[YAPPI FUNC_STATS]')
+
+    print('writing /tmp/pants.func_stats')
+    with open('/tmp/pants.func_stats', 'wb') as fh:
+      stats.print_all(out=fh)
+
+    print('\n[YAPPI THREAD_STATS]')
+
+    print('writing /tmp/pants.thread_stats')
+    tstats = yappi.get_thread_stats()
+    with open('/tmp/pants.thread_stats', 'wb') as fh:
+      tstats.print_all(out=fh)
+
+    print('[YAPPI OUT]')
         
 
 if __name__ == '__main__':
+    
+    #init_yappi()
     
     log.startLogging(sys.stdout)
 
