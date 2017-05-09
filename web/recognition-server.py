@@ -93,7 +93,7 @@ parser.add_argument('--networkModel', type=str, help="Path to Torch network mode
                     default=os.path.join(openfaceModelDir, 'nn4.small2.v1.t7'))
 parser.add_argument('--imgDim', type=int,
                     help="Default image dimension.", default=SAMPLES_IMG_SIZE)
-parser.add_argument('--cuda', action='store_false')
+parser.add_argument('--cuda', action='store_true')
 parser.add_argument('--headless', action='store_true')
 parser.add_argument('--unknown', type=bool, default=False,
                     help='Try to predict unknown people')
@@ -102,10 +102,6 @@ parser.add_argument('--port', type=int, default=9003,
 
 args = parser.parse_args()
 
-align = openface.AlignDlib(args.dlibFacePredictor)
-net = openface.TorchNeuralNet(args.networkModel, imgDim=args.imgDim,
-                              cuda=False)
-svm = None
 knownUsers = []
 le = LabelEncoder().fit(knownUsers)
 svmDefinitionFile = "current-classifier.pkl"
@@ -118,33 +114,6 @@ def ensure_dir(f):
     d = os.path.dirname(f)
     if not os.path.exists(d):
         os.makedirs(d)
-
-def loadDefaultSVMData():
-    svmFile = userDataDir + "/" + svmDefinitionFile
-    loadSVMData(svmFile)
-
-def loadSVMData(fileName):
-    print("Reading data from: " + fileName)
-    with open(fileName, 'r') as f:
-        (lEnc, clf) = pickle.load(f)
-    global svm 
-    global le
-    svm = clf
-    le = lEnc
-    print("Reading data completed: " + str(svm))
-
-class Face:
-
-    def __init__(self, rep, identity):
-        self.rep = rep
-        self.identity = identity
-
-    def __repr__(self):
-        return "{{id: {}, rep[0:5]: {}}}".format(
-            str(self.identity),
-            self.rep[0:5]
-        )
-
 
 class OpenFaceServerProtocol(WebSocketServerProtocol):
 
@@ -224,7 +193,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                 updateLocalSVMDefinitionOnDisk()
             elif msg['type'] == "RELOAD_SVM":
                 print("RELOAD_SVM")
-                loadDefaultSVMData()
+                recognitionService.loadDefaultSVMData()
                 
                 msg = {
                     "type": "IDENTITIES",
@@ -336,8 +305,6 @@ if __name__ == '__main__':
     #init_yappi()
     
     log.startLogging(sys.stdout)
-
-    loadDefaultSVMData()
 
     factory = WebSocketServerFactory("ws://localhost:{}".format(args.port),
                                      debug=False)

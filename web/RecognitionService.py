@@ -134,6 +134,7 @@ class RecognitionService:
         self.training = True
         self.people = []
         
+        print("cuda: {}".format(args.cuda))
         print("headless: {}".format(args.headless))
         self.headless = args.headless
         if not self.headless:
@@ -143,7 +144,7 @@ class RecognitionService:
             print("Init pool element {}/{}...".format(i+1, self.POOL_SIZE))
             align = openface.AlignDlib(args.dlibFacePredictor)
             net = openface.TorchNeuralNet(args.networkModel, imgDim=args.imgDim,
-                                          cuda=True)
+                                          cuda=args.cuda)
             self.networks.put((align, net))        
 
     def loadDefaultSVMData(self):
