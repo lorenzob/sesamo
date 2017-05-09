@@ -132,3 +132,10 @@ sudo make PREFIX=/usr install
 
 # Check demo
 ./demos/compare.py images/examples/{lennon*,clapton*}
+
+Nuove:
+
+sudo pip install profilehooks
+sudo pip install imutils
+
+

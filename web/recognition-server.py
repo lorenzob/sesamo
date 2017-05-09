@@ -94,6 +94,7 @@ parser.add_argument('--networkModel', type=str, help="Path to Torch network mode
 parser.add_argument('--imgDim', type=int,
                     help="Default image dimension.", default=SAMPLES_IMG_SIZE)
 parser.add_argument('--cuda', action='store_false')
+parser.add_argument('--headless', action='store_true')
 parser.add_argument('--unknown', type=bool, default=False,
                     help='Try to predict unknown people')
 parser.add_argument('--port', type=int, default=9003,
@@ -155,7 +156,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
     
     #win = dlib.image_window()
 
-    recognitionService = RecognitionService.RecognitionService()
+    recognitionService = RecognitionService.RecognitionService(args)
     recognitionService.loadDefaultSVMData()
 
     from multiprocessing.dummy import Pool

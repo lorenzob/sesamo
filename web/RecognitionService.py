@@ -33,6 +33,8 @@ import os
 import sys
 import threading
 from datetime import datetime
+import dlib
+import time
 
 from profilehooks import profile
 import Queue
@@ -89,23 +91,6 @@ modelDir = os.path.join(fileDir, '.', '.', 'models')
 dlibModelDir = os.path.join(modelDir, 'dlib')
 openfaceModelDir = os.path.join(modelDir, 'openface')
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--dlibFacePredictor', type=str, help="Path to dlib's face predictor.",
-                    default=os.path.join(dlibModelDir, "shape_predictor_68_face_landmarks.dat"))
-parser.add_argument('--networkModel', type=str, help="Path to Torch network model.",
-                    default=os.path.join(openfaceModelDir, 'nn4.small2.v1.t7'))
-parser.add_argument('--imgDim', type=int,
-                    help="Default image dimension.", default=SAMPLES_IMG_SIZE)
-parser.add_argument('--cuda', action='store_false')
-parser.add_argument('--unknown', type=bool, default=False,
-                    help='Try to predict unknown people')
-parser.add_argument('--port', type=int, default=9003,
-                    help='WebSocket Port')
-
-args = parser.parse_args()
-
-
-
 
 class Face:
 
@@ -134,11 +119,6 @@ class RecognitionService:
     fpsLock = threading.Lock()
     lastFpsCount = 0
     frameCount = 0
-
-
-    # Temp: solo per l'immagine di controllo
-    import dlib
-    import time
     
     POOL_SIZE=4
     
@@ -146,18 +126,25 @@ class RecognitionService:
     pool = Pool(processes=POOL_SIZE)
         
     networks = Queue.Queue()
-    for i in range(POOL_SIZE):
-        align = openface.AlignDlib(args.dlibFacePredictor)
-        net = openface.TorchNeuralNet(args.networkModel, imgDim=args.imgDim,
-                                      cuda=True)
-        networks.put((align, net))        
     
-    win = dlib.image_window()
+    win = None
 
-    def __init__(self):
+    def __init__(self, args):
         self.images = {}
         self.training = True
         self.people = []
+        
+        print("headless: {}".format(args.headless))
+        self.headless = args.headless
+        if not self.headless:
+            self.win = dlib.image_window()
+
+        for i in range(self.POOL_SIZE):
+            print("Init pool element {}/{}...".format(i+1, self.POOL_SIZE))
+            align = openface.AlignDlib(args.dlibFacePredictor)
+            net = openface.TorchNeuralNet(args.networkModel, imgDim=args.imgDim,
+                                          cuda=True)
+            self.networks.put((align, net))        
 
     def loadDefaultSVMData(self):
         svmFile = self.userDataDir + "/" + self.svmDefinitionFile
@@ -173,7 +160,7 @@ class RecognitionService:
         print("Reading data completed: " + str(self.svm))
         
     def processFrameCallback(self, openFlag):
-        print("processFrame completed " + str(openFlag))
+        print("internal processFrame completed (non usato) " + str(openFlag))
 
     def startAsyncProcessFrame(self, dataURL, identity, completion_callback, binary):
         #print("startAsyncProcessFrame")
@@ -285,7 +272,8 @@ class RecognitionService:
                         cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.4,
                         color=(0, 255, 0), thickness=1)
             
-            self.win.set_image(annotatedFrame)
+            if self.win is not None:
+                self.win.set_image(annotatedFrame)
             
             self.networks.put((align, net))
 
