@@ -28,6 +28,8 @@ from imutils.video import FPS
 waitLock = threading.Lock()
 wait = 0
 
+recognitionHost=sys.argv[1]
+
 def onMessage(msg):
     
     global wait
@@ -82,9 +84,9 @@ faceCascade = cv2.CascadeClassifier(cascPath)
 #@profile
 def processFrame(frame, gray):
     
-    #print("processFrame started")
     
     try:
+        #print("processFrame started (wait: " + str(wait))
     
         faces = faceCascade.detectMultiScale(
             gray,
@@ -131,7 +133,7 @@ def forwardFrames():
 
     try:
 
-        wsc = RemoteForwardServer.RemoteForwardServer('ws://192.168.0.5:9003')
+        wsc = RemoteForwardServer.RemoteForwardServer('ws://{}:9003'.format(recognitionHost))
         wsc.startAsync(onMessage)
         time.sleep(1)
     
@@ -143,6 +145,7 @@ def forwardFrames():
     
         # loop over frames from the video file stream
         fps = FPS().start()
+        localFps = FPS().start()
         frameCount = 0
         print("Streaming started")
         lastFrame = None 
@@ -155,35 +158,30 @@ def forwardFrames():
                 # TODO: reconnect
                 break
     
-    
             #gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             if lastFrame is not None:
                 sameFrame = np.array_equal(frame, lastFrame)
-                
-                # Scarto frame duplicati
-                # forse e' piu' veloce fare la subtract sui frame a colori?
-                # la cosa piu' veloce e' fare una diff diretta
-                #diff = cv2.subtract(lastFrame, gray)
-                #diffVal = cv2.countNonZero(diff)
-                #print(diffVal)
-                #if diffVal == 0:
                 if sameFrame:
-                    #lastFrame = gray
-                    #lastFrame = frame
                     continue
                 
-            #lastFrame = gray
             lastFrame = frame
+    
+            localFps.update()
     
             frameCount += 1
             if frameCount % 100 == 0:
+                localFps.stop()
+                localCount = localFps.fps()
+                print("[INFO] Local approx. FPS: {:.2f}".format(localCount))
+                localFps = FPS().start()
+                
                 fps.stop()
                 count = fps.fps()
                 if count > 1:
                     print("[INFO] approx. FPS: {:.2f}".format(count))
                 fps = FPS().start()
         
-            if wait > 1:
+            if wait > 2:
                 continue
             
             #if len(faces) > 0:
@@ -193,7 +191,8 @@ def forwardFrames():
             
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             
-            startProcessFrame(frame, gray)
+            #startProcessFrame(frame, gray)
+            processFrame(frame, gray)
     
             fps.update()
             

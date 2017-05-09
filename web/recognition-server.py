@@ -153,7 +153,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
     
     import RecognitionService
     
-    win = dlib.image_window()
+    #win = dlib.image_window()
 
     recognitionService = RecognitionService.RecognitionService()
     recognitionService.loadDefaultSVMData()
