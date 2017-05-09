@@ -51,6 +51,8 @@ gpio export 18 out
 gpio mode 1 out
 gpio write 1 1
 
+v4l2-ctl -d /dev/video0 -p 30
 
+guvcview
 
 

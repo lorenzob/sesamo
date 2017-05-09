@@ -1,6 +1,8 @@
 # USAGE
 # python read_frames_fast.py --video videos/jurassic_park_intro.mp4
 
+from random import randint
+
 # import the necessary packages
 from imutils.video import VideoStream
 from imutils.video import FPS
@@ -95,8 +97,9 @@ def processFrame(frame, gray):
             minSize=(80, 80),
             flags = cv2.cv.CV_HAAR_SCALE_IMAGE
         )
-        
-        if len(faces) > 0:
+
+        rnd = (wait == 0 and randint(0, 20) == 0)        
+        if rnd or len(faces) > 0:
             print("Found {0} faces!".format(len(faces)))
             sendMessage(frame, "test")
             #IOLoop.instance().add_callback(lambda: sendMessage(frame, "test"))

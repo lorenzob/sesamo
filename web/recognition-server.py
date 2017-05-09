@@ -159,7 +159,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
     recognitionService.loadDefaultSVMData()
 
     from multiprocessing.dummy import Pool
-    pool = Pool(processes=4)
+    remoteOpenPool = Pool(processes=1)
     
     def __init__(self):
         self.images = {}
@@ -171,19 +171,11 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         print("Client connecting: {0}".format(request.peer))
         self.training = False
 
-    fps = None
-    
     def onOpen(self):
         print("WebSocket connection open.")
-        try:
-            self.fps = FPS().start()
-        except Exception, e:
-            print str(e)
 
-    frameCount = 0
-    
     def processFrameCompleted(self, temp):
-        print("AAA processFrame completed " + str(temp))
+        #print("processFrame completed " + str(temp))
         try:
             self.sendMessage('{"type": "PROCESSED"}')
         except Exception, e:
@@ -194,26 +186,16 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         print("onMessage (" + str(isBinary))
         
         try:
-            self.frameCount += 1
-            self.fps.update()
-            if self.frameCount % 30 == 0:
-                self.fps.stop()
-                count = self.fps.fps()
-                if count > 1:
-                    print("[INFO] approx. FPS: {:.2f}".format(count))
-                self.fps = FPS().start()
-
             if isBinary:
     
                 try:
-                    print("Binary")
                     rawData = bytearray(payload)
                     npdata = np.asarray(rawData)
                     img = cv2.imdecode(npdata, cv2.IMREAD_UNCHANGED)
     
                     #self.win.set_image(img)
     
-                    print("Invoke start process")
+                    #print("Invoke start process")
                     
                     self.recognitionService.startAsyncProcessFrame(rawData, "test", self.processFrameCompleted, binary=True)
                     #self.sendMessage('{"type": "PROCESSED"}')
@@ -267,7 +249,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         open_callback_function = \
             lambda new_name: self.remoteOpenCallback(new_name)
         
-        self.pool.apply_async(
+        self.remoteOpenPool.apply_async(
             self.remoteOpen,
             args=[openFlag],
             callback=open_callback_function)
@@ -283,50 +265,6 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         
         r.text
         r.status_code
-        
-    def startAsyncSpeakerRecognition(self, matches):
-        new_callback_function = \
-            lambda new_name: self.speakerRecognitionCallback(new_name)
-        
-        self.pool.apply_async(
-            self.speakerRecognition,
-            args=[matches],
-            callback=new_callback_function)
-        
-    def speakerRecognition(self, matches):
-
-        from websocket import create_connection
-        ws = create_connection("ws://localhost:9004/")
-        print "Sending 'Hello, World'..."
-        
-        msg = {
-            "type": "START_RECORDING",
-            "matches": matches
-        }
-        
-        ws.send(json.dumps(msg))
-        #print "Sent. Receiving..."
-        result =  ws.recv()
-        print "Audio result '%s'" % result
-        ws.close()
-        
-        return "error"
-                
-    def speakerRecognitionCallback(self, audio_file_and_video_matches):
-        print("check voice for " + audio_file_and_video_matches)
-
-    def processFrameCallback(self, openFlag):
-        print("processFrame completed " + str(openFlag))
-
-    def startAsyncProcessFrame(self, dataURL, identity, binary):
-        print("startAsyncProcessFrame")
-        open_callback_function = \
-            lambda new_name: self.remoteOpenCallback(new_name)
-        
-        self.pool.apply_async(
-            self.processFrame,
-            args=[dataURL, identity, binary],
-            callback=self.processFrameCallback)
 
     def updateLocalSVMDefinitionOnDisk(self):
 
@@ -353,128 +291,6 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         #now = time.time()
         #os.rename(svmDefinitionFile, svmDefinitionFile + ".bak-" + str(now))
         os.rename(svmNewFile, userDataDir + "/" + svmDefinitionFile)
-        
-    #@profile
-    def processFrame(self, dataURL, identity, binary):
-        
-        try:
-        
-            if svm is None: # gestire meglio con un errore a monte
-                print("No svm")
-                return
-            
-            if binary:
-                print("Process binary image")
-                imgF = StringIO.StringIO() #buffer where image is stored
-                imgF.write(dataURL) #data is from the socket
-                imgF.seek(0)
-            else:
-                head = "data:image/jpeg;base64,"
-                assert(dataURL.startswith(head))
-                imgdata = base64.b64decode(dataURL[len(head):])
-                imgF = StringIO.StringIO()
-                imgF.write(imgdata)
-                imgF.seek(0)
-            
-            img = Image.open(imgF)
-    
-            # A quanto pare dalla webcam arriva alla roverscia
-            # e lo rigira per poterlo visualizzare giusto
-            buf = np.fliplr(np.asarray(img))
-            
-            annotatedFrame = np.copy(buf)
-    
-            # Trovare volti (da capire se serve il BGR2RGB)
-            rgbImg = cv2.cvtColor(buf, cv2.COLOR_BGR2RGB)
-            
-            #raw_input("Press Enter to continue...")
-    
-            #cv2.imwrite("forwarded.jpg", rgbImg)
-            
-            # align
-            bbs = align.getAllFaceBoundingBoxes(rgbImg)
-    
-            # Riconoscimento
-            matches = []
-            usersInFrame = []
-            for box in bbs:
-                alignedFace = align.align(
-                        SAMPLES_IMG_SIZE,
-                        rgbImg,
-                        box,
-                        landmarkIndices=openface.AlignDlib.OUTER_EYES_AND_NOSE)
-                    
-                rep = net.forward(alignedFace).reshape(1, -1)
-                # Il reshape serve perche' chiedo una predizione sola
-                # qui sarebbe probabilmente piu' giusto accumulare
-                # i volti e farne una sola(?) Si puo'?
-                predictions = svm.predict_proba(rep).ravel()
-                
-                maxI = np.argmax(predictions)
-                confidence = predictions[maxI]
-    
-                nome = le.inverse_transform(maxI)
-                # text = "{} (confidence {})".format(nome, confidence)
-    
-                location = [box.left(), box.bottom(), box.right(), box.top()]
-                matches.append([nome, confidence, location])
-                
-                text = "{} (confidence {})".format(nome, confidence)
-                usersInFrame.append(text)
-                
-                cv2.putText(annotatedFrame, text, (5, 20),
-                            cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.4,
-                            color=(0, 255, 0), thickness=1)
-                bl = (box.left(), box.bottom()); tr = (box.right(), box.top())
-                cv2.rectangle(annotatedFrame, bl, tr, color=(153, 255, 204),
-                              thickness=1)
-                
-                #self.sendMessage(json.dumps(msg))
-            print(matches)
-            
-            if matches:
-                # Ho un match, inizio a registrare
-                #self.startAsyncRemoteOpen(1)
-                pass
-            else:
-                #self.startAsyncRemoteOpen(0)
-                pass
-    
-            msg = {
-                "type": "IDENTITIES",
-                "identities": usersInFrame
-            }
-            self.sendMessage(json.dumps(msg))
-            print("Send IDS (dentro process)")
-    #        plt.figure()
-    #        plt.imshow(annotatedFrame)
-    #        plt.xticks([])
-    #        plt.yticks([])
-            self.win.set_image(annotatedFrame)
-    
-    #        imgdata = StringIO.StringIO()
-            #plt.savefig(imgdata, format='png')
-    #        plt.savefig(imgdata, format="jpg", dpi=75, quality=15)
-    #        imgdata.seek(0)
-    #        content = 'data:image/png;base64,' + \
-    #            urllib.quote(base64.b64encode(imgdata.buf))
-            #plt.close()
-    
-            # Ogni match e' fatto da [nome, confidenza, location]
-            # dove location e' [xL, yBottom, xR, yTop] 
-            # print(matches)
-            msg = {
-                "type": "MATCHES",
-                "identities": matches
-            }
-            self.sendMessage(json.dumps(msg))
-            print("Send MATCHES (dentro process)")
-            
-        except Exception, e:
-            print "Process frame: " + str(e)
-        
-        self.sendMessage('{"type": "PROCESSED"}')
-        print("Send PROCESSED (dentro process)")
 
 def init_yappi():
   import atexit

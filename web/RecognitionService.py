@@ -31,6 +31,8 @@
 
 import os
 import sys
+import threading
+from datetime import datetime
 
 from profilehooks import profile
 import Queue
@@ -128,6 +130,12 @@ class RecognitionService:
     cwd = os.path.dirname(os.path.realpath(__file__))
     userDataDir = cwd + "/web-identities"
 
+    fps = FPS().start()
+    fpsLock = threading.Lock()
+    lastFpsCount = 0
+    frameCount = 0
+
+
     # Temp: solo per l'immagine di controllo
     import dlib
     import time
@@ -168,7 +176,7 @@ class RecognitionService:
         print("processFrame completed " + str(openFlag))
 
     def startAsyncProcessFrame(self, dataURL, identity, completion_callback, binary):
-        print("startAsyncProcessFrame")
+        #print("startAsyncProcessFrame")
         open_callback_function = \
             lambda new_name: completion_callback(new_name)
         
@@ -184,7 +192,7 @@ class RecognitionService:
         import dlib
         
         try:
-            print("processFrame")
+            #print("processFrame")
             
             start = time.time()
     
@@ -195,7 +203,7 @@ class RecognitionService:
                 return
             
             if binary:
-                print("Process binary image")
+                #print("Process binary image")
                 imgF = StringIO.StringIO() #buffer where image is stored
                 imgF.write(dataURL) #data is from the socket
                 imgF.seek(0)
@@ -226,7 +234,7 @@ class RecognitionService:
             # align
             bbs = align.getAllFaceBoundingBoxes(gray)
 
-            print("Found: " + str(len(bbs)))
+            #print("Found: " + str(len(bbs)))
             
             # Riconoscimento
             matches = []
@@ -260,7 +268,7 @@ class RecognitionService:
                 text = "{} (confidence {})".format(nome, confidence)
                 usersInFrame.append(text)
                 
-                cv2.putText(annotatedFrame, text, (5, 20),
+                cv2.putText(annotatedFrame, text, (10, 20),
                             cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.4,
                             color=(0, 255, 0), thickness=1)
                 
@@ -272,14 +280,33 @@ class RecognitionService:
                 #self.sendMessage(json.dumps(msg))
             print(matches)
 
+            status = "{} - FPS: {:.2f}".format(datetime.now(), self.lastFpsCount)
+            cv2.putText(annotatedFrame, status, (10, 460),
+                        cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.4,
+                        color=(0, 255, 0), thickness=1)
+            
             self.win.set_image(annotatedFrame)
             
-        except Exception, e:
-            print "Process frame: " + str(e)
-        
-        print(time.time() - start)
+            self.networks.put((align, net))
 
-        self.networks.put((align, net))
+            self.updateFPS()
+            
+            #print("time: " + str(time.time() - start))
+
+        except Exception, e:
+            print "Exception process frame: " + str(e)
+    
+    def updateFPS(self):
+        self.fps.update()
+        self.frameCount += 1
+        if self.frameCount % 30 == 0:
+            with self.fpsLock:
+                self.fps.stop()
+                count = self.fps.fps()
+                if count > 0:
+                    print("[INFO] approx. FPS: {:.2f}".format(count))
+                self.lastFpsCount = count
+                self.fps = FPS().start()
 
         
 def init_yappi():
