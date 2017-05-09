@@ -30,7 +30,16 @@ from imutils.video import FPS
 waitLock = threading.Lock()
 wait = 0
 
-recognitionHost=sys.argv[1]
+parser = argparse.ArgumentParser()
+parser.add_argument('host')
+parser.add_argument('--headless', action='store_false', default=False)
+parser.add_argument('--port', type=int, default=9003,
+                    help='WebSocket Port')
+
+args = parser.parse_args()
+
+
+recognitionHost=args.host
 
 def onMessage(msg):
     
@@ -78,7 +87,7 @@ def sendMessage(frame, identity):
         traceback.print_exc()
 
 from multiprocessing.dummy import Pool
-pool = Pool(processes=1)
+pool = Pool(processes=4)
 
 cascPath = "haarcascade_frontalface_default.xml"
 faceCascade = cv2.CascadeClassifier(cascPath)
@@ -86,10 +95,10 @@ faceCascade = cv2.CascadeClassifier(cascPath)
 #@profile
 def processFrame(frame, gray):
     
-    
     try:
         #print("processFrame started (wait: " + str(wait))
-    
+ 
+        #TODO: provare con 50/50?   
         faces = faceCascade.detectMultiScale(
             gray,
             scaleFactor=1.4,
@@ -99,9 +108,26 @@ def processFrame(frame, gray):
         )
 
         rnd = (wait == 0 and randint(0, 20) == 0)        
-        if rnd or len(faces) > 0:
+        if len(faces) > 0:
             print("Found {0} faces!".format(len(faces)))
+            
+            print("Faces: {}".format(faces[0]))
+            for face in faces:
+                x,y,w,h = face
+                
+                x += -10
+                w += 20
+                y += 10
+                h += 20
+                
+                crop = frame[y:y+h, x:x+w]
+                
+                #TODO: qui posso fare anche il downscale
+                
+                sendMessage(crop, "test")
+        elif rnd:
             sendMessage(frame, "test")
+            
             #IOLoop.instance().add_callback(lambda: sendMessage(frame, "test"))
             #IOLoop.instance().start()
     except Exception, e:
@@ -184,7 +210,8 @@ def forwardFrames():
                     print("[INFO] approx. FPS: {:.2f}".format(count))
                 fps = FPS().start()
         
-            if wait > 2:
+            if wait > 4:
+                print("################################################")
                 continue
             
             #if len(faces) > 0:
@@ -194,14 +221,15 @@ def forwardFrames():
             
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             
-            #startProcessFrame(frame, gray)
-            processFrame(frame, gray)
+            startProcessFrame(frame, gray)
+            #processFrame(frame, gray)
     
             fps.update()
             
-        	# show the frame and update the FPS counter
-        	#cv2.imshow("Frame", frame)
-        	#cv2.waitKey(1)
+            # show the frame and update the FPS counter
+            if not args.headless:
+                cv2.imshow("Frame", frame)
+                cv2.waitKey(1)
         
         # stop the timer and display FPS information
         

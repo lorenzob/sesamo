@@ -20,11 +20,13 @@ class RemoteForwardServer(object):
 
     def start(self):
         
-        websocket_connect(
+        print("start connect")
+        f = websocket_connect(
             self.url,
             self.ioloop,
             callback=self.on_connected,
             on_message_callback=self.onMessageCallback)
+        
         print("start loop")
         self.ioloop.start()
         print("fine start")
@@ -32,9 +34,11 @@ class RemoteForwardServer(object):
     conn = None
 
     def on_message(self, msg):
+        print("on_message")
         print msg
     
     def on_connected(self, f):
+        print("on_connected")
         try:
             self.conn = f.result()
             
@@ -113,7 +117,7 @@ if __name__=='__main__':
     import sys
     sys.excepthook = log_except_hook
     
-    wsc = RemoteForwardServer('ws://localhost:9003')
+    wsc = RemoteForwardServer('ws://ec2-52-41-184-155.us-west-2.compute.amazonaws.com:9003')
     wsc.startAsync(wsc.on_message)
     #wsc.start()
     time.sleep(1)
