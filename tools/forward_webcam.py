@@ -77,8 +77,8 @@ def sendMessage(frame, identity):
             msgData = '{"type":"FRAME","dataURL":"' + dataURL + '","identity":"' + identity + '"}'
             with waitLock:
                 #wsc.enqueueMessage(msgData)
-                wsc.enqueueMessage(cnt.tobytes())
                 wait += 1
+                wsc.enqueueMessage(cnt.tobytes())
                 print("sendMessage - wait: " + str(wait))
         else:
             print("no connection")
@@ -98,7 +98,8 @@ def processFrame(frame, gray):
     try:
         #print("processFrame started (wait: " + str(wait))
  
-        #TODO: provare con 50/50?   
+        #TODO: provare con 50/50?
+        #TODO: faceCascade e' thread safe? Mi serve un pool?
         faces = faceCascade.detectMultiScale(
             gray,
             scaleFactor=1.4,
@@ -108,6 +109,7 @@ def processFrame(frame, gray):
         )
 
         rnd = (wait == 0 and randint(0, 20) == 0)        
+	    #rnd = True
         if len(faces) > 0:
             print("Found {0} faces!".format(len(faces)))
             
@@ -126,7 +128,9 @@ def processFrame(frame, gray):
                 
                 sendMessage(crop, "test")
         elif rnd:
+            print("send tracking frame")
             sendMessage(frame, "test")
+            wsc.flushAllMessages()
             
             #IOLoop.instance().add_callback(lambda: sendMessage(frame, "test"))
             #IOLoop.instance().start()
@@ -155,9 +159,11 @@ def startProcessFrame(frame, gray):
 
 
 wsc = None
+MAX_WAIT=4
 
 def forwardFrames():
     
+    global wait
     global wsc
 
     try:
@@ -209,28 +215,35 @@ def forwardFrames():
                 if count > 1:
                     print("[INFO] approx. FPS: {:.2f}".format(count))
                 fps = FPS().start()
+
+            # show the frame and update the FPS counter
+            if not args.headless:
+                cv2.imshow("Frame", frame)
+                cv2.waitKey(1)
         
-            if wait > 4:
-                print("################################################")
-                continue
+            with waitLock:
+                
+                print("wait: {} - bufferSize: {}".format(wait, wsc.readBufferSize()))
+                if wsc.readBufferSize() >= MAX_WAIT or wait == 0:
+                    wsc.flushAllMessages()
+                    
+                if wait >= MAX_WAIT + 2:
+                    continue
+            
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            startProcessFrame(frame, gray)
             
             #if len(faces) > 0:
             # Usare pool?
             #IOLoop.instance().add_callback(lambda: sendMessage(frame, "test"))
             #IOLoop.instance().start()
             
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            
-            startProcessFrame(frame, gray)
+            #gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            #startProcessFrame(frame, gray)
             #processFrame(frame, gray)
     
             fps.update()
             
-            # show the frame and update the FPS counter
-            if not args.headless:
-                cv2.imshow("Frame", frame)
-                cv2.waitKey(1)
-        
         # stop the timer and display FPS information
         
         # do a bit of cleanup

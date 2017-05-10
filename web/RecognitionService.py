@@ -180,7 +180,7 @@ class RecognitionService:
         import dlib
         
         try:
-            #print("processFrame")
+            print("processFrame")
             
             start = time.time()
     
@@ -266,7 +266,7 @@ class RecognitionService:
                               thickness=1)
                 
                 #self.sendMessage(json.dumps(msg))
-            print(matches)
+            print("matches " + str(matches))
 
             status = "{} - FPS: {:.2f}".format(datetime.now(), self.lastFpsCount)
             cv2.putText(annotatedFrame, status, (10, 460),
@@ -276,15 +276,17 @@ class RecognitionService:
             if self.win is not None:
                 self.win.set_image(annotatedFrame)
             
-            self.networks.put((align, net))
 
             self.updateFPS()
             
             #print("time: " + str(time.time() - start))
-
         except Exception, e:
-            print "Exception process frame: " + str(e)
-    
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+            print(exc_type, fname, exc_tb.tb_lineno)
+        finally:
+            self.networks.put((align, net))
+        
     def updateFPS(self):
         self.fps.update()
         self.frameCount += 1

@@ -1,8 +1,11 @@
 import tornado
 from tornado.websocket import websocket_connect
 import time
+import threading
 import numpy as np
-
+import io
+import sys
+import os
 
 import Queue
 
@@ -32,6 +35,9 @@ class RemoteForwardServer(object):
         print("fine start")
 
     conn = None
+    buffer = None
+    bufferSize = 0
+    bufferLock = threading.Lock()
 
     def on_message(self, msg):
         print("on_message")
@@ -68,7 +74,56 @@ class RemoteForwardServer(object):
             callback=open_callback_function)
 
     def enqueueMessage(self, msgData):
-        self.ioloop.add_callback(self.sendMsg, msgData)
+        
+        import struct
+            
+        try:
+            print(type(msgData))
+            print(len(msgData))
+            
+            with self.bufferLock:
+                
+                if self.buffer is None:
+                    self.buffer = io.BytesIO()
+                    self.buffer.write("SM01TIMESTMPSRC1")
+                    
+                print("self.buffer size: {} ".format(self.buffer.tell()))
+                    
+                self.buffer.write(struct.pack('>H', len(msgData)))
+                self.buffer.write(msgData)
+                
+                self.bufferSize += 1
+                
+                #self.buffer.seek(0)
+                #var = self.buffer.read()
+                #self.buffer = None
+                #self.ioloop.add_callback(self.sendMsg, var)
+        except Exception, e:
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+            print(exc_type, fname, exc_tb.tb_lineno)
+
+    def readBufferSize(self):
+        with self.bufferLock:
+            return self.bufferSize
+
+    def flushAllMessages(self):
+        try:
+            with self.bufferLock:
+                
+                if self.buffer is not None:
+                    print("flushAllMessages size: {} ".format(self.buffer.tell()))
+                    self.buffer.seek(0)
+                    var = self.buffer.read()
+                    self.buffer = None
+                    self.ioloop.add_callback(self.sendMsg, var)
+                    
+                    self.bufferSize = 0
+
+        except Exception, e:
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+            print(exc_type, fname, exc_tb.tb_lineno)
 
     def sendMsg(self, msgData):
         #print("sendMsg " + str(len(msgData)))
@@ -110,6 +165,27 @@ def log_except_hook(*exc_info):
         print("Unhandled exception " + text)
     except Exception, e:
         print str(e)
+
+
+
+def bytes_to_int(bytes):
+    result = 0
+
+    for b in bytes:
+        result = result * 256 + int(b)
+
+    return result
+
+def int_to_bytes(value, length):
+    result = []
+
+    for i in range(0, length):
+        result.append(value >> (i * 8) & 0xff)
+
+    result.reverse()
+
+    return result
+
 
 
 if __name__=='__main__':

@@ -93,8 +93,8 @@ parser.add_argument('--networkModel', type=str, help="Path to Torch network mode
                     default=os.path.join(openfaceModelDir, 'nn4.small2.v1.t7'))
 parser.add_argument('--imgDim', type=int,
                     help="Default image dimension.", default=SAMPLES_IMG_SIZE)
-parser.add_argument('--cuda', action='store_true')
-parser.add_argument('--headless', action='store_true')
+parser.add_argument('--cuda', action='store_false', default=False)
+parser.add_argument('--headless', action='store_true', default=False)
 parser.add_argument('--unknown', type=bool, default=False,
                     help='Try to predict unknown people')
 parser.add_argument('--port', type=int, default=9003,
@@ -129,7 +129,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
     recognitionService.loadDefaultSVMData()
 
     from multiprocessing.dummy import Pool
-    remoteOpenPool = Pool(processes=1)
+    remoteOpenPool = Pool(processes=2)
     
     def __init__(self):
         self.images = {}
@@ -145,7 +145,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         print("WebSocket connection open.")
 
     def processFrameCompleted(self, temp):
-        #print("processFrame completed " + str(temp))
+        print("processFrame completed " + str(temp))
         try:
             self.sendMessage('{"type": "PROCESSED"}')
         except Exception, e:
@@ -153,24 +153,51 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
 
     def onMessage(self, payload, isBinary):
 
-        print("onMessage (" + str(isBinary))
-        
+        import struct
+
+        print("onMessage")
         try:
+            print("onMessage (" + str(isBinary) + " - " + str(len(payload)))
+        
             if isBinary:
     
-                try:
-                    rawData = bytearray(payload)
-                    npdata = np.asarray(rawData)
-                    img = cv2.imdecode(npdata, cv2.IMREAD_UNCHANGED)
-    
-                    #self.win.set_image(img)
-    
-                    #print("Invoke start process")
+                #print(type(payload))
+                rawData = bytearray(payload)
+                #print(type(rawData))
+                npdata = np.asarray(rawData)
+                #print(type(npdata))
+                
+                header = npdata[0:16]
+                #print(str(header))
+                
+                currPos = 16
+                print("Pre: " + str(currPos) + "/" + str(npdata.size))
+                while currPos < npdata.size:
                     
-                    self.recognitionService.startAsyncProcessFrame(rawData, "test", self.processFrameCompleted, binary=True)
-                    #self.sendMessage('{"type": "PROCESSED"}')
-                except Exception, e:
-                    print str(e)
+                    #print(str(currPos) + "/" + str(npdata.size))
+                    
+                    sizeEnd = currPos+2
+                    size = struct.unpack('>H', npdata[currPos:sizeEnd])[0]
+                    imgData = npdata[sizeEnd:sizeEnd+size]
+                    #print(len(imgData))
+                    #print(type(imgData))
+
+                    self.recognitionService.startAsyncProcessFrame(np.array(imgData).tostring(), "test", self.processFrameCompleted, binary=True)
+                    
+                    currPos = sizeEnd+size
+                    print("Post: " + str(currPos) + "/" + str(npdata.size))
+                #if size > 0:
+                #    with open("prova-buffer.jpeg", "w") as f:
+                #        f.write(imgData)
+                
+                #img = cv2.imdecode(imgData, cv2.IMREAD_UNCHANGED)
+
+                #self.win.set_image(img)
+
+                #print("Invoke start process")
+                
+                #self.sendMessage('{"type": "PROCESSED"}')
+
                 return
     
             print("Non binary")
@@ -207,8 +234,10 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
             else:
                 print("Warning: Unknown message type: {}".format(msg['type']))
         except Exception, e:
-            print str(e)
-
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+            print(exc_type, fname, exc_tb.tb_lineno)
+    
     def onClose(self, wasClean, code, reason):
         print("WebSocket connection closed: {0}".format(reason))
 

@@ -21,13 +21,14 @@ for i in range(10):
         gray,
         scaleFactor=1.4,
         minNeighbors=4,  #Higher value results in less detections but with higher quality.
-        minSize=(80, 80),
+        minSize=(40, 40),
         flags = cv2.cv.CV_HAAR_SCALE_IMAGE
     )
     
     end = time.time()
     
     print("Found {0} faces! (time: {1})".format(len(faces), (end-start)))
+    print("Found {0}".format(faces[0]))
 
 # Draw a rectangle around the faces
 for (x, y, w, h) in faces:

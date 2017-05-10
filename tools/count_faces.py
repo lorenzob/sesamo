@@ -1,5 +1,8 @@
 #!/usr/bin/env python2
 
+import matplotlib
+matplotlib.use('Agg')
+
 import sys
 import dlib
 from skimage import io
