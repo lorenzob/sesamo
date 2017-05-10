@@ -32,7 +32,7 @@ wait = 0
 
 parser = argparse.ArgumentParser()
 parser.add_argument('host')
-parser.add_argument('--headless', action='store_false', default=False)
+parser.add_argument('--headless', action='store_true', default=False)
 parser.add_argument('--port', type=int, default=9003,
                     help='WebSocket Port')
 
@@ -77,7 +77,6 @@ def sendMessage(frame, identity):
             msgData = '{"type":"FRAME","dataURL":"' + dataURL + '","identity":"' + identity + '"}'
             with waitLock:
                 #wsc.enqueueMessage(msgData)
-                wait += 1
                 wsc.enqueueMessage(cnt.tobytes())
                 print("sendMessage - wait: " + str(wait))
         else:
@@ -125,12 +124,12 @@ def processFrame(frame, gray):
                 crop = frame[y:y+h, x:x+w]
                 
                 #TODO: qui posso fare anche il downscale
-                
                 sendMessage(crop, "test")
         elif rnd:
             print("send tracking frame")
-            sendMessage(frame, "test")
-            wsc.flushAllMessages()
+            #sendMessage(frame, "test")
+            #wait += 1
+            #wsc.flushAllMessages()
             
             #IOLoop.instance().add_callback(lambda: sendMessage(frame, "test"))
             #IOLoop.instance().start()
@@ -159,7 +158,7 @@ def startProcessFrame(frame, gray):
 
 
 wsc = None
-MAX_WAIT=4
+MAX_WAIT=10
 
 def forwardFrames():
     
@@ -173,6 +172,7 @@ def forwardFrames():
         time.sleep(1)
     
         fvs = VideoStream(src=0).start()
+        #fvs = VideoStream(usePiCamera=True, resolution=(640,480)).start()
         time.sleep(1.0)
      
         cascPath = "haarcascade_frontalface_default.xml"
@@ -224,10 +224,11 @@ def forwardFrames():
             with waitLock:
                 
                 print("wait: {} - bufferSize: {}".format(wait, wsc.readBufferSize()))
-                if wsc.readBufferSize() >= MAX_WAIT or wait == 0:
+                if wsc.readBufferSize() >= 4 or wait < (MAX_WAIT / 2):
+                    wait += wsc.readBufferSize()
                     wsc.flushAllMessages()
                     
-                if wait >= MAX_WAIT + 2:
+                if wait >= MAX_WAIT:
                     continue
             
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)

@@ -11,6 +11,7 @@ import Queue
 
 class RemoteForwardServer(object):
 
+    # Remote open pool
     from multiprocessing.dummy import Pool
     pool = Pool(processes=1)
 
@@ -112,7 +113,7 @@ class RemoteForwardServer(object):
             with self.bufferLock:
                 
                 if self.buffer is not None:
-                    print("flushAllMessages size: {} ".format(self.buffer.tell()))
+                    print("flushAllMessages count: {}, size: {} ".format(self.bufferSize, self.buffer.tell()))
                     self.buffer.seek(0)
                     var = self.buffer.read()
                     self.buffer = None
