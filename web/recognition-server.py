@@ -167,16 +167,18 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                 npdata = np.asarray(rawData)
                 #print(type(npdata))
                 
-                header = npdata[0:16]
+                headerLen = 16
+                header = npdata[0:headerLen]
                 #print(str(header))
-                
-                currPos = 16
+
+                sizeLen = 2                
+                currPos = headerLen
                 print("Pre: " + str(currPos) + "/" + str(npdata.size))
                 while currPos < npdata.size:
                     
                     #print(str(currPos) + "/" + str(npdata.size))
                     
-                    sizeEnd = currPos+2
+                    sizeEnd = currPos+sizeLen
                     size = struct.unpack('>H', npdata[currPos:sizeEnd])[0]
                     imgData = npdata[sizeEnd:sizeEnd+size]
                     #print(len(imgData))

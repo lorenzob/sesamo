@@ -18,6 +18,7 @@ import threading
 import traceback
 import RemoteForwardServer
 import numpy as np
+import Queue
 
 from profilehooks import profile
 
@@ -33,6 +34,7 @@ wait = 0
 parser = argparse.ArgumentParser()
 parser.add_argument('host')
 parser.add_argument('--headless', action='store_true', default=False)
+parser.add_argument('--picamera', action='store_true', default=False)
 parser.add_argument('--port', type=int, default=9003,
                     help='WebSocket Port')
 
@@ -85,11 +87,16 @@ def sendMessage(frame, identity):
         print str(e)
         traceback.print_exc()
 
+POOL_SIZE=4
 from multiprocessing.dummy import Pool
-pool = Pool(processes=4)
+pool = Pool(processes=POOL_SIZE)
 
 cascPath = "haarcascade_frontalface_default.xml"
-faceCascade = cv2.CascadeClassifier(cascPath)
+detectors = Queue.Queue()
+for i in range(POOL_SIZE):
+    print("Init pool element {}/{}...".format(i+1, POOL_SIZE))
+    faceCascade = cv2.CascadeClassifier(cascPath)
+    detectors.put(faceCascade)        
 
 #@profile
 def processFrame(frame, gray):
@@ -99,6 +106,8 @@ def processFrame(frame, gray):
  
         #TODO: provare con 50/50?
         #TODO: faceCascade e' thread safe? Mi serve un pool?
+        faceCascade = detectors.get_nowait()
+        
         faces = faceCascade.detectMultiScale(
             gray,
             scaleFactor=1.4,
@@ -136,6 +145,8 @@ def processFrame(frame, gray):
     except Exception, e:
         print str(e)
         traceback.print_exc()
+    finally:
+        detectors.put(faceCascade)
         
 
 def processFrameCallback(frame):
@@ -159,6 +170,7 @@ def startProcessFrame(frame, gray):
 
 wsc = None
 MAX_WAIT=10
+BATCH_SIZE=5
 
 def forwardFrames():
     
@@ -171,8 +183,10 @@ def forwardFrames():
         wsc.startAsync(onMessage)
         time.sleep(1)
     
-        fvs = VideoStream(src=0).start()
-        #fvs = VideoStream(usePiCamera=True, resolution=(640,480)).start()
+        if args.picamera:
+            fvs = VideoStream(usePiCamera=True, resolution=(640,480)).start()
+        else:
+            fvs = VideoStream(src=0).start()
         time.sleep(1.0)
      
         cascPath = "haarcascade_frontalface_default.xml"
@@ -224,7 +238,7 @@ def forwardFrames():
             with waitLock:
                 
                 print("wait: {} - bufferSize: {}".format(wait, wsc.readBufferSize()))
-                if wsc.readBufferSize() >= 4 or wait < (MAX_WAIT / 2):
+                if wsc.readBufferSize() >= BATCH_SIZE or wait < (MAX_WAIT / 2):
                     wait += wsc.readBufferSize()
                     wsc.flushAllMessages()
                     

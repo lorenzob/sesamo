@@ -204,6 +204,7 @@ class RecognitionService:
                 imgF.seek(0)
             
             img = Image.open(imgF)
+            print("shape img: " + str(np.shape(img)))
     
             # A quanto pare dalla webcam arriva alla roverscia
             # e lo rigira per poterlo visualizzare giusto
