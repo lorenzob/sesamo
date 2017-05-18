@@ -101,18 +101,19 @@ for i in range(POOL_SIZE):
 #@profile
 def processFrame(frame, gray):
     
+    global wait
+    
     try:
         #print("processFrame started (wait: " + str(wait))
  
-        #TODO: provare con 50/50?
-        #TODO: faceCascade e' thread safe? Mi serve un pool?
+        #TODO: provo con 60 (prima era 80)?
         faceCascade = detectors.get_nowait()
         
         faces = faceCascade.detectMultiScale(
             gray,
             scaleFactor=1.4,
             minNeighbors=4,  #Higher value results in less detections but with higher quality.
-            minSize=(80, 80),
+            minSize=(60, 60),
             flags = cv2.cv.CV_HAAR_SCALE_IMAGE
         )
 
@@ -136,9 +137,10 @@ def processFrame(frame, gray):
                 sendMessage(crop, "test")
         elif rnd:
             print("send tracking frame")
-            #sendMessage(frame, "test")
-            #wait += 1
-            #wsc.flushAllMessages()
+            sendMessage(frame, "test")
+            with waitLock:
+                wait += 1
+            wsc.flushAllMessages()
             
             #IOLoop.instance().add_callback(lambda: sendMessage(frame, "test"))
             #IOLoop.instance().start()

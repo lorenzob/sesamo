@@ -35,6 +35,7 @@ import threading
 from datetime import datetime
 import dlib
 import time
+import traceback
 
 from profilehooks import profile
 import Queue
@@ -107,6 +108,8 @@ class Face:
 
 class RecognitionService:
 
+    from multiprocessing.dummy import Pool
+
     svm = None
     knownUsers = []
     le = LabelEncoder().fit(knownUsers)
@@ -120,9 +123,10 @@ class RecognitionService:
     lastFpsCount = 0
     frameCount = 0
     
-    POOL_SIZE=4
+    onRecognitionCallback = None 
+    remoteOpenPool = Pool(processes=1)
     
-    from multiprocessing.dummy import Pool
+    POOL_SIZE=4
     pool = Pool(processes=POOL_SIZE)
         
     networks = Queue.Queue()
@@ -147,6 +151,9 @@ class RecognitionService:
                                           cuda=args.cuda)
             self.networks.put((align, net))        
 
+        if args.onRecognitionWebhook is not None:
+            self.onRecognitionCallback = self.startAsyncRemoteOpen
+
     def loadDefaultSVMData(self):
         svmFile = self.userDataDir + "/" + self.svmDefinitionFile
         self.loadSVMData(svmFile)
@@ -159,7 +166,41 @@ class RecognitionService:
         self.svm = clf
         self.le = lEnc
         print("Reading data completed: " + str(self.svm))
+ 
+    def remoteOpenCallback(self, openFlag):
+        print("remoteOpen completed " + str(openFlag))
+
+    def startAsyncRemoteOpen(self, matches):
         
+        print("Start asynch remote open...")
+        
+        open_callback_function = \
+            lambda new_name: self.remoteOpenCallback(new_name)
+        
+        self.remoteOpenPool.apply_async(
+            self.remoteOpen,
+            args=[1],
+            callback=open_callback_function)
+
+    def remoteOpen(self, openFlag):
+
+        try:
+
+            print("Remote open command: '{0}'".format(openFlag))
+            
+            payload = {'open': openFlag}
+    
+            # GET with params in URL
+            r = requests.get(raspberry_url, params=payload)
+            
+            r.text
+            r.status_code
+        except Exception, e:
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+            print("remoteOpen: ", exc_type, fname, exc_tb.tb_lineno)
+            traceback.print_exc()
+               
     def processFrameCallback(self, openFlag):
         print("internal processFrame completed (non usato) " + str(openFlag))
 
@@ -222,8 +263,6 @@ class RecognitionService:
             
             # align
             bbs = align.getAllFaceBoundingBoxes(gray)
-
-            #print("Found: " + str(len(bbs)))
             
             # Riconoscimento
             matches = []
@@ -249,7 +288,6 @@ class RecognitionService:
                 confidence = predictions[maxI]
     
                 nome = self.le.inverse_transform(maxI)
-                # text = "{} (confidence {})".format(nome, confidence)
     
                 location = [box.left(), box.bottom(), box.right(), box.top()]
                 matches.append([nome, confidence, location])
@@ -257,26 +295,27 @@ class RecognitionService:
                 text = "{} (confidence {})".format(nome, confidence)
                 usersInFrame.append(text)
                 
-                cv2.putText(annotatedFrame, text, (10, 20),
-                            cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.4,
-                            color=(0, 255, 0), thickness=1)
-                
-                bl = (box.left()*scale, box.bottom()*scale); tr = (box.right()*scale, box.top()*scale)
-                
-                cv2.rectangle(annotatedFrame, bl, tr, color=(153, 255, 204),
-                              thickness=1)
+                if self.win is not None:
+                    cv2.putText(annotatedFrame, text, (10, 20),
+                                cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.4,
+                                color=(0, 255, 0), thickness=1)
+                    
+                    bl = (box.left()*scale, box.bottom()*scale); tr = (box.right()*scale, box.top()*scale)
+                    cv2.rectangle(annotatedFrame, bl, tr, color=(153, 255, 204),
+                                  thickness=1)
                 
                 #self.sendMessage(json.dumps(msg))
             print("matches " + str(matches))
 
-            status = "{} - FPS: {:.2f}".format(datetime.now(), self.lastFpsCount)
-            cv2.putText(annotatedFrame, status, (10, 460),
-                        cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.4,
-                        color=(0, 255, 0), thickness=1)
+            if len(matches) > 0 and self.onRecognitionCallback is not None:
+                self.onRecognitionCallback(matches)
             
             if self.win is not None:
+                status = "{} - FPS: {:.2f}".format(datetime.now(), self.lastFpsCount)
+                cv2.putText(annotatedFrame, status, (10, 460),
+                            cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.4,
+                            color=(0, 255, 0), thickness=1)
                 self.win.set_image(annotatedFrame)
-            
 
             self.updateFPS()
             
@@ -284,7 +323,8 @@ class RecognitionService:
         except Exception, e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            print(exc_type, fname, exc_tb.tb_lineno)
+            print("processFrame: ", exc_type, fname, exc_tb.tb_lineno)
+            traceback.print_exc()
         finally:
             self.networks.put((align, net))
         

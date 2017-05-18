@@ -31,6 +31,7 @@
 
 import os
 import sys
+import traceback
 
 from profilehooks import profile
 
@@ -77,7 +78,11 @@ import openface
 
 import requests
 
-raspberry_url = 'http://192.168.0.6:3000'
+import RecognitionService
+    
+
+
+#raspberry_url = 'http://192.168.0.6:3000'
 
 SAMPLES_IMG_SIZE = 96
 
@@ -99,6 +104,9 @@ parser.add_argument('--unknown', type=bool, default=False,
                     help='Try to predict unknown people')
 parser.add_argument('--port', type=int, default=9003,
                     help='WebSocket Port')
+parser.add_argument('--onRecognitionWebhook', default=None,
+                    help='"Open the door" webhook')
+
 
 args = parser.parse_args()
 
@@ -108,6 +116,8 @@ svmDefinitionFile = "current-classifier.pkl"
 
 cwd = os.path.dirname(os.path.realpath(__file__))
 userDataDir = cwd + "/web-identities"
+
+raspberry_url=args.onRecognitionWebhook
 
 
 def ensure_dir(f):
@@ -121,15 +131,12 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
     import dlib
     import time
     
-    import RecognitionService
-    
     #win = dlib.image_window()
-
+    
+    recognitionService = None
+    
     recognitionService = RecognitionService.RecognitionService(args)
     recognitionService.loadDefaultSVMData()
-
-    from multiprocessing.dummy import Pool
-    remoteOpenPool = Pool(processes=2)
     
     def __init__(self):
         self.images = {}
@@ -149,7 +156,8 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         try:
             self.sendMessage('{"type": "PROCESSED"}')
         except Exception, e:
-            print str(e)
+            print("processFrameCompleted: ", str(e))
+            traceback.print_exc()
 
     def onMessage(self, payload, isBinary):
 
@@ -238,34 +246,11 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         except Exception, e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            print(exc_type, fname, exc_tb.tb_lineno)
+            print("onMessage: ", exc_type, fname, exc_tb.tb_lineno)
+            traceback.print_exc()
     
     def onClose(self, wasClean, code, reason):
         print("WebSocket connection closed: {0}".format(reason))
-
-    def remoteOpenCallback(self, openFlag):
-        print("remoteOpen completed " + str(openFlag))
-
-    def startAsyncRemoteOpen(self, openFlag):
-        open_callback_function = \
-            lambda new_name: self.remoteOpenCallback(new_name)
-        
-        self.remoteOpenPool.apply_async(
-            self.remoteOpen,
-            args=[openFlag],
-            callback=open_callback_function)
-
-    def remoteOpen(self, openFlag):
-
-        print("Remote open command: '{0}'".format(openFlag))
-        
-        payload = {'open': openFlag}
-
-        # GET with params in URL
-        r = requests.get(raspberry_url, params=payload)
-        
-        r.text
-        r.status_code
 
     def updateLocalSVMDefinitionOnDisk(self):
 
