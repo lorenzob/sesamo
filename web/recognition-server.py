@@ -32,6 +32,7 @@
 import os
 import sys
 import traceback
+import threading
 
 from profilehooks import profile
 
@@ -151,12 +152,17 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
     def onOpen(self):
         print("WebSocket connection open.")
 
+    framesQueueLock = threading.RLock()
+    framesQueue = 0
+
     def processFrameCompleted(self, temp):
-        print("processFrame completed " + str(temp))
         try:
+            with self.framesQueueLock:
+                self.framesQueue += -1
+                print("processFrame completed " + str(temp) + " - Pending: " + str(self.framesQueue))
             self.sendMessage('{"type": "PROCESSED"}')
         except Exception, e:
-            print("processFrameCompleted: ", str(e))
+            print("### EXC: processFrameCompleted: ", str(e))
             traceback.print_exc()
 
     def onMessage(self, payload, isBinary):
@@ -191,8 +197,15 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                     imgData = npdata[sizeEnd:sizeEnd+size]
                     #print(len(imgData))
                     #print(type(imgData))
-
-                    self.recognitionService.startAsyncProcessFrame(np.array(imgData).tostring(), "test", self.processFrameCompleted, binary=True)
+                
+                    with self.framesQueueLock:
+                        self.framesQueue += 1
+                        print("Pending: " + str(self.framesQueue))
+                        
+                        if self.framesQueue < 4:
+                            self.recognitionService.startAsyncProcessFrame(np.array(imgData).tostring(), "test", self.processFrameCompleted, binary=True)
+                        else:
+                            self.processFrameCompleted("dropped")
                     
                     currPos = sizeEnd+size
                     print("Post: " + str(currPos) + "/" + str(npdata.size))
@@ -246,7 +259,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         except Exception, e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            print("onMessage: ", exc_type, fname, exc_tb.tb_lineno)
+            print("### EXC: onMessage: ", exc_type, fname, exc_tb.tb_lineno)
             traceback.print_exc()
     
     def onClose(self, wasClean, code, reason):

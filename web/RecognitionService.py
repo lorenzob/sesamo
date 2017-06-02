@@ -176,10 +176,13 @@ class RecognitionService:
         
         open_callback_function = \
             lambda new_name: self.remoteOpenCallback(new_name)
+
+        match = matches[0]
+        openFlag = 1 if match[1] > 0.95 else 0
         
         self.remoteOpenPool.apply_async(
             self.remoteOpen,
-            args=[1],
+            args=[openFlag],
             callback=open_callback_function)
 
     def remoteOpen(self, openFlag):
@@ -198,7 +201,7 @@ class RecognitionService:
         except Exception, e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            print("remoteOpen: ", exc_type, fname, exc_tb.tb_lineno)
+            print("### EXC: remoteOpen: ", exc_type, fname, exc_tb.tb_lineno)
             traceback.print_exc()
                
     def processFrameCallback(self, openFlag):
@@ -323,7 +326,7 @@ class RecognitionService:
         except Exception, e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-            print("processFrame: ", exc_type, fname, exc_tb.tb_lineno)
+            print("### EXC: processFrame: ", exc_type, fname, exc_tb.tb_lineno)
             traceback.print_exc()
         finally:
             self.networks.put((align, net))

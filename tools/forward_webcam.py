@@ -171,8 +171,8 @@ def startProcessFrame(frame, gray):
 
 
 wsc = None
-MAX_WAIT=10
-BATCH_SIZE=5
+MAX_WAIT=3
+BATCH_SIZE=2
 
 def forwardFrames():
     
@@ -240,11 +240,17 @@ def forwardFrames():
             with waitLock:
                 
                 print("wait: {} - bufferSize: {}".format(wait, wsc.readBufferSize()))
+                
                 if wsc.readBufferSize() >= BATCH_SIZE or wait < (MAX_WAIT / 2):
                     wait += wsc.readBufferSize()
                     wsc.flushAllMessages()
                     
                 if wait >= MAX_WAIT:
+                    print("CLEAR BUFFER wait: {} - bufferSize: {}".format(wait, wsc.readBufferSize()))
+                    wsc.clearAllBuffer()
+                    continue
+                
+                if wsc.readBufferSize() >= BATCH_SIZE:
                     continue
             
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)

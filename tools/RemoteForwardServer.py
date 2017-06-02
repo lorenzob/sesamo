@@ -104,6 +104,11 @@ class RemoteForwardServer(object):
             fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
             print(exc_type, fname, exc_tb.tb_lineno)
 
+    def clearAllBuffer(self):
+        with self.bufferLock:
+            self.buffer = None
+            self.bufferSize = 0
+
     def readBufferSize(self):
         with self.bufferLock:
             return self.bufferSize
