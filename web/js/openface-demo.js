@@ -54,7 +54,7 @@ function sendFrameLoop() {
         return;
     }
 
-    if (tok > 0) {
+    if (tok.length < 1) {
         var canvas = document.createElement('canvas');
         canvas.width = vid.width;
         canvas.height = vid.height;
@@ -69,15 +69,21 @@ function sendFrameLoop() {
             identity = $("#addPersonTxt").val();
         }
         
+        var frameId = Math.random().toString(36).substring(2) 
+        				+ (new Date()).getTime().toString(36);
+        
         var msg = {
             'type': 'FRAME',
             'dataURL': dataURL,
+            'frameId': frameId,
             'identity': identity
         };
         
     	socket.send(JSON.stringify(msg));
-    	tok--;
+    	tok.push(frameId);
     }
+    $("#debugText").html("tok " + tok);
+    
     setTimeout(function() {requestAnimFrame(sendFrameLoop)}, 250);
 }
 
@@ -169,7 +175,7 @@ function createSocket(address, name) {
         receivedTimes = [];
         // tok sblocca la spedizione di un altro frame dopo che quello
         // precedente e' stato processato. Se > 0 spedisce
-        tok = defaultTok;  // = 1
+        tok = [];  // = 1
         numNulls = 0
 
         socket.send(JSON.stringify({'type': 'NULL'}));
@@ -194,7 +200,8 @@ function createSocket(address, name) {
         } else if (j.type == "PROCESSED") {
         	// il server mi dice che ha finito e riabilito la spedizione
         	// del prossimo frame
-            tok++;
+            //console.log("Processed");
+            tok.splice(tok.indexOf("TODO"), 1);
         } else if (j.type == "NEW_IMAGE") {
         	/*
         	 * Il server mi spedisce una delle immaginine di training
@@ -250,7 +257,6 @@ function createSocket(address, name) {
             
         	ids = j.identities
         	drawBoxes(ids);
-        	
         } else {
             console.log("Unrecognized message type: " + j.type);
         }

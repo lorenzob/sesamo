@@ -36,6 +36,8 @@ from datetime import datetime
 import dlib
 import time
 import traceback
+from MultiMatch import MultiMatch
+from MultiMatch import Match
 
 from profilehooks import profile
 import Queue
@@ -123,13 +125,17 @@ class RecognitionService:
     lastFpsCount = 0
     frameCount = 0
     
+    trackingCallback = None 
     onRecognitionCallback = None 
     remoteOpenPool = Pool(processes=1)
     
-    POOL_SIZE=4
+    POOL_SIZE=1
     pool = Pool(processes=POOL_SIZE)
         
     networks = Queue.Queue()
+    
+    matches = MultiMatch(0.9, 3)
+    matchesLock = threading.Lock()
     
     win = None
 
@@ -153,6 +159,9 @@ class RecognitionService:
 
         if args.onRecognitionWebhook is not None:
             self.onRecognitionCallback = self.startAsyncRemoteOpen
+
+    def setTrackingCallback(self, callback):
+        self.trackingCallback = callback
 
     def loadDefaultSVMData(self):
         svmFile = self.userDataDir + "/" + self.svmDefinitionFile
@@ -207,24 +216,24 @@ class RecognitionService:
     def processFrameCallback(self, openFlag):
         print("internal processFrame completed (non usato) " + str(openFlag))
 
-    def startAsyncProcessFrame(self, dataURL, identity, completion_callback, binary):
+    def startAsyncProcessFrame(self, dataURL, identity, frameId, completion_callback, binary):
         #print("startAsyncProcessFrame")
         open_callback_function = \
-            lambda new_name: completion_callback(new_name)
+            lambda new_name: completion_callback(new_name, frameId)
         
         self.pool.apply_async(
             self.processFrame,
-            args=[dataURL, identity, binary],
+            args=[dataURL, identity, frameId, binary],
             callback=open_callback_function)
 
         
     #@profile
-    def processFrame(self, dataURL, identity, binary):
+    def processFrame(self, dataURL, identity, frameId, binary):
         
         import dlib
         
         try:
-            print("processFrame")
+            print("processFrame " + frameId)
             
             start = time.time()
     
@@ -260,7 +269,7 @@ class RecognitionService:
             rgbImg = cv2.cvtColor(buf, cv2.COLOR_BGR2RGB)
             
             height, width = buf.shape[:2]
-            scale = 4
+            scale = 2
             small = cv2.resize(buf, (width/scale, height/scale), interpolation = cv2.INTER_AREA)
             gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
             
@@ -268,7 +277,7 @@ class RecognitionService:
             bbs = align.getAllFaceBoundingBoxes(gray)
             
             # Riconoscimento
-            matches = []
+            currMatches = []
             usersInFrame = []
             for box in bbs:
                 
@@ -293,7 +302,10 @@ class RecognitionService:
                 nome = self.le.inverse_transform(maxI)
     
                 location = [box.left(), box.bottom(), box.right(), box.top()]
-                matches.append([nome, confidence, location])
+                match = Match(nome, confidence, time.time(), location)
+                #matches.append([nome, confidence, location])
+                with self.matchesLock:
+                    self.matches.record(match)
                 
                 text = "{} (confidence {})".format(nome, confidence)
                 usersInFrame.append(text)
@@ -307,11 +319,16 @@ class RecognitionService:
                     cv2.rectangle(annotatedFrame, bl, tr, color=(153, 255, 204),
                                   thickness=1)
                 
+                scaledLocation = [bl[0], bl[1], tr[0], tr[1]]
+                currMatches.append([nome, confidence, scaledLocation])
+                
                 #self.sendMessage(json.dumps(msg))
-            print("matches " + str(matches))
+            print("matches " + str(self.matches))
 
-            if len(matches) > 0 and self.onRecognitionCallback is not None:
-                self.onRecognitionCallback(matches)
+            with self.matchesLock:
+                if self.matches.check() and self.onRecognitionCallback is not None:
+                    self.onRecognitionCallback(matches)
+                self.trackingCallback(currMatches, frameId)
             
             if self.win is not None:
                 status = "{} - FPS: {:.2f}".format(datetime.now(), self.lastFpsCount)

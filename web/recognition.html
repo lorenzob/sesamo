@@ -58,6 +58,8 @@ limitations under the License.
                         Start
                     </button>
                 </h2>
+                <h2>Debug</h2>
+                <div id="debugText"></div>
 				<!-- 
                 <h2>Training
                     <input type="checkbox" checked data-toggle="toggle"
@@ -112,6 +114,7 @@ limitations under the License.
 
      $("#trainingChk").bootstrapToggle('off');
      $("#peopleInVideo").html("");
+     $("#debugText").html("[empty]");
 
      if (navigator.getUserMedia) {
          var videoSelector = {video : true};

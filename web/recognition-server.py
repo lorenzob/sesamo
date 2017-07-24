@@ -137,7 +137,6 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
     recognitionService = None
     
     recognitionService = RecognitionService.RecognitionService(args)
-    recognitionService.loadDefaultSVMData()
     
     def __init__(self):
         self.images = {}
@@ -145,6 +144,9 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
         self.people = []
         ensure_dir(userDataDir)
 
+        self.recognitionService.loadDefaultSVMData()
+        self.recognitionService.setTrackingCallback(self.sendTrackingMessage)
+    
     def onConnect(self, request):
         print("Client connecting: {0}".format(request.peer))
         self.training = False
@@ -152,15 +154,37 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
     def onOpen(self):
         print("WebSocket connection open.")
 
+    def sendTrackingMessage(self, matches, frameId):
+        msg = {
+            "type": "MATCHES",
+            "identities": matches
+        }
+        self.sendMessage(json.dumps(msg))
+
+        msg = {
+            "type": "PROCESSED",
+            "frameId": frameId
+        }
+        self.sendMessage(json.dumps(msg))
+
     framesQueueLock = threading.RLock()
     framesQueue = 0
 
-    def processFrameCompleted(self, temp):
+    def processFrameCompleted(self, temp, frameId):
         try:
             with self.framesQueueLock:
                 self.framesQueue += -1
-                print("processFrame completed " + str(temp) + " - Pending: " + str(self.framesQueue))
-            self.sendMessage('{"type": "PROCESSED"}')
+                #
+                #if self.framesQueue < 0:
+                #   self.framesQueue = 0 
+                print("processFrame completed " + str(temp) + " - " + str(frameId) + " - Pending: " + str(self.framesQueue))
+            
+            print("PROCESSED")
+            msg = {
+                "type": "PROCESSED",
+                "frameId": frameId
+            }
+            self.sendMessage(json.dumps(msg))
         except Exception, e:
             print("### EXC: processFrameCompleted: ", str(e))
             traceback.print_exc()
@@ -203,9 +227,9 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                         print("Pending: " + str(self.framesQueue))
                         
                         if self.framesQueue < 4:
-                            self.recognitionService.startAsyncProcessFrame(np.array(imgData).tostring(), "test", self.processFrameCompleted, binary=True)
+                            self.recognitionService.startAsyncProcessFrame(np.array(imgData).tostring(), "bin-id", "bin-frame-Id", self.processFrameCompleted, binary=True)
                         else:
-                            self.processFrameCompleted("dropped")
+                            self.processFrameCompleted("dropped", "TODO-frame-id")
                     
                     currPos = sizeEnd+size
                     print("Post: " + str(currPos) + "/" + str(npdata.size))
@@ -224,7 +248,7 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                 return
     
             print("Non binary")
-            
+        
             raw = payload.decode('utf8')
             msg = json.loads(raw)
             if msg['type'] == "NULL":
@@ -235,9 +259,19 @@ class OpenFaceServerProtocol(WebSocketServerProtocol):
                 msg['type'], len(raw)))
             if msg['type'] == "FRAME":
                 # singolo frame della webcam
-                #self.startAsyncProcessFrame(msg['dataURL'], msg['identity'], binary=False)
-                print("Send PROCESSED (non bin)")
-                self.sendMessage('{"type": "PROCESSED"}')
+                with self.framesQueueLock:
+                    self.framesQueue += 1
+                    print("Pending: " + str(self.framesQueue))
+                
+                if self.framesQueue < 4:
+                    self.recognitionService.startAsyncProcessFrame(msg['dataURL'], msg['identity'], msg['frameId'], self.processFrameCompleted, binary=False)
+                else:
+                    print("Dropped")
+                    self.processFrameCompleted("dropped", msg['frameId'])
+
+                #self.recognitionService.startAsyncProcessFrame(msg['dataURL'], msg['identity'], self.processFrameCompleted, binary=False)
+                
+                #print("Send PROCESSED (non bin)")
             elif msg['type'] == "UPDATE_SVM":
                 print("UPDATE_SVM")
                 updateLocalSVMDefinitionOnDisk()
