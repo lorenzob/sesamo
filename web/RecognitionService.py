@@ -310,12 +310,12 @@ class RecognitionService:
                 text = "{} (confidence {})".format(nome, confidence)
                 usersInFrame.append(text)
                 
+                bl = (box.left()*scale, box.bottom()*scale); tr = (box.right()*scale, box.top()*scale)
                 if self.win is not None:
                     cv2.putText(annotatedFrame, text, (10, 20),
                                 cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.4,
                                 color=(0, 255, 0), thickness=1)
                     
-                    bl = (box.left()*scale, box.bottom()*scale); tr = (box.right()*scale, box.top()*scale)
                     cv2.rectangle(annotatedFrame, bl, tr, color=(153, 255, 204),
                                   thickness=1)
                 
